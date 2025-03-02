@@ -26,6 +26,7 @@
 #include <LibGfx/PainterSkia.h>
 #include <LibGfx/PathSkia.h>
 #include <LibGfx/SkiaUtils.h>
+#include <LibGfx/ImageOrientation.h>
 #include <LibWeb/CSS/ComputedValues.h>
 #include <LibWeb/Painting/DisplayListPlayerSkia.h>
 #include <LibWeb/Painting/ShadowPainting.h>
@@ -133,13 +134,85 @@ void DisplayListPlayerSkia::draw_painting_surface(DrawPaintingSurface const& com
     canvas.drawImageRect(image, src_rect, dst_rect, to_skia_sampling_options(command.scaling_mode), &paint, SkCanvas::kStrict_SrcRectConstraint);
 }
 
+void apply_exif_orientation(Gfx::PaintingSurface &surface, Gfx::ExifOrientation orientation, Gfx::IntRect &dst_rect);
+
+void apply_exif_orientation(Gfx::PaintingSurface &surface, Gfx::ExifOrientation orientation, Gfx::IntRect &dst_rect) {
+    auto& canvas = surface.canvas();
+
+    switch (orientation) {
+        case Gfx::ExifOrientation::Rotate90ClockwiseThenFlipHorizontally:
+        case Gfx::ExifOrientation::Rotate90Clockwise:
+        case Gfx::ExifOrientation::FlipHorizontallyThenRotate90Clockwise:
+        case Gfx::ExifOrientation::Rotate90CounterClockwise:
+            dst_rect.set_size(dst_rect.height(), dst_rect.width());
+            break;
+        default:
+            break;
+    }
+
+    auto const diff_width_height = max(dst_rect.width() - dst_rect.height(), dst_rect.height() - dst_rect.width());
+
+    switch (orientation) {
+    case Gfx::ExifOrientation::Default:
+        return;
+    case Gfx::ExifOrientation::FlipHorizontally:
+        canvas.translate(dst_rect.top_left().x() * 2 + dst_rect.width() / 2, 0);
+        canvas.scale(-1, 1);
+        canvas.translate(-dst_rect.width() / 2, 0);
+        return;
+    case Gfx::ExifOrientation::Rotate180:
+        canvas.translate(dst_rect.width(), dst_rect.height());
+        canvas.rotate(180, dst_rect.top_left().x(), dst_rect.top_left().y());
+        return;
+    case Gfx::ExifOrientation::FlipVertically:
+        canvas.translate(0, dst_rect.top_left().y() * 2 + dst_rect.height() / 2);
+        canvas.scale(1, -1);
+        canvas.translate(0, -dst_rect.height() / 2);
+        return;
+    case Gfx::ExifOrientation::Rotate90ClockwiseThenFlipHorizontally:
+        canvas.translate(dst_rect.top_left().x() * 2 + dst_rect.width() / 2, 0);
+        canvas.scale(-1, 1);
+        // correct for scaling: -dst_rect.width() / 2 plus correct for rotation: dst_rect.width() becomes dst_rect.width() /2
+        canvas.translate(dst_rect.width() / 2, 0);
+        canvas.rotate(90, dst_rect.top_left().x(), dst_rect.top_left().y());
+        return;
+    case Gfx::ExifOrientation::Rotate90Clockwise:
+        canvas.translate(dst_rect.width() + diff_width_height, 0);
+        canvas.rotate(90, dst_rect.top_left().x(), dst_rect.top_left().y());
+        return;
+    case Gfx::ExifOrientation::FlipHorizontallyThenRotate90Clockwise:
+        canvas.translate(dst_rect.width() + diff_width_height, 0);
+        canvas.rotate(90, dst_rect.top_left().x(), dst_rect.top_left().y());
+
+        canvas.translate(dst_rect.top_left().x() * 2 + dst_rect.width() / 2, 0);
+        canvas.scale(-1, 1);
+        canvas.translate(-dst_rect.width() / 2, 0);
+        return;
+    case Gfx::ExifOrientation::Rotate90CounterClockwise:
+        canvas.translate(0, dst_rect.height() - diff_width_height);
+        canvas.rotate(-90, dst_rect.top_left().x(), dst_rect.top_left().y());
+        return;
+    default:
+        VERIFY_NOT_REACHED();
+    }
+}
+
 void DisplayListPlayerSkia::draw_scaled_immutable_bitmap(DrawScaledImmutableBitmap const& command)
 {
-    auto src_rect = to_skia_rect(command.src_rect);
-    auto dst_rect = to_skia_rect(command.dst_rect);
     auto& canvas = surface().canvas();
+    auto command_dst_rect = command.dst_rect;
+
+    canvas.save();
+
+    auto orientation = command.bitmap->bitmap()->exif_orientation();
+
+    apply_exif_orientation(surface(), orientation, command_dst_rect);
+
+    auto src_rect = to_skia_rect(command.src_rect);
+    auto dst_rect = to_skia_rect(command_dst_rect);
     SkPaint paint;
     canvas.drawImageRect(command.bitmap->sk_image(), src_rect, dst_rect, to_skia_sampling_options(command.scaling_mode), &paint, SkCanvas::kStrict_SrcRectConstraint);
+    canvas.restore();
 }
 
 void DisplayListPlayerSkia::draw_repeated_immutable_bitmap(DrawRepeatedImmutableBitmap const& command)
