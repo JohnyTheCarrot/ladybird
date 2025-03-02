@@ -204,9 +204,11 @@ void DisplayListPlayerSkia::draw_scaled_immutable_bitmap(DrawScaledImmutableBitm
 
     canvas.save();
 
-    auto orientation = command.bitmap->bitmap()->exif_orientation();
+    if (command.image_orientation == Gfx::ImageOrientation::FromExif) {
+        auto orientation = command.bitmap->bitmap()->exif_orientation();
 
-    apply_exif_orientation(surface(), orientation, command_dst_rect);
+        apply_exif_orientation(surface(), orientation, command_dst_rect);
+    }
 
     auto src_rect = to_skia_rect(command.src_rect);
     auto dst_rect = to_skia_rect(command_dst_rect);
