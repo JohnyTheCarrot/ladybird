@@ -6,6 +6,7 @@
 
 #include <LibWeb/Painting/DisplayListRecorder.h>
 #include <LibWeb/Painting/ShadowPainting.h>
+#include <core/SkMatrix.h>
 
 namespace Web::Painting {
 
@@ -194,15 +195,83 @@ void DisplayListRecorder::draw_painting_surface(Gfx::IntRect const& dst_rect, No
     });
 }
 
+static Gfx::AffineTransform compute_exif_orientation_matrix(Gfx::ExifOrientation orientation, Gfx::IntRect& dst_rect)
+{
+    Gfx::AffineTransform matrix;
+
+    switch (orientation) {
+    case Gfx::ExifOrientation::Rotate90ClockwiseThenFlipHorizontally:
+    case Gfx::ExifOrientation::Rotate90Clockwise:
+    case Gfx::ExifOrientation::FlipHorizontallyThenRotate90Clockwise:
+    case Gfx::ExifOrientation::Rotate90CounterClockwise:
+        dst_rect.set_size(dst_rect.height(), dst_rect.width());
+        break;
+    default:
+        break;
+    }
+
+    switch (orientation) {
+    case Gfx::ExifOrientation::Default:
+        return matrix;
+    case Gfx::ExifOrientation::FlipHorizontally:
+        matrix.set_translation(dst_rect.width() / 2, 0);
+        matrix.set_scale(-1, 1);
+        matrix.translate(-dst_rect.width() / 2.f, 0);
+        break;
+    case Gfx::ExifOrientation::Rotate180:
+        matrix.set_translation(dst_rect.width(), dst_rect.height());
+        matrix.rotate_radians(M_PI);
+        break;
+    case Gfx::ExifOrientation::FlipVertically:
+        matrix.set_translation(0, dst_rect.height() / 2);
+        matrix.set_scale(1, -1);
+        matrix.translate(0, -dst_rect.height() / 2);
+        break;
+    case Gfx::ExifOrientation::Rotate90ClockwiseThenFlipHorizontally:
+        // We translate by the height, which will be the new width of the image.
+        matrix.set_translation(dst_rect.height(), 0);
+        matrix.rotate_radians(M_PI / 2.);
+        // We translate by the old height to move the image back to the origin.
+        matrix.translate(dst_rect.width(), 0);
+        matrix.scale(-1, 1);
+        break;
+    case Gfx::ExifOrientation::Rotate90Clockwise:
+        matrix.set_translation(dst_rect.height(), 0);
+        matrix.rotate_radians(M_PI / 2.);
+        break;
+    case Gfx::ExifOrientation::FlipHorizontallyThenRotate90Clockwise:
+        matrix.translate(dst_rect.height(), 0);
+        matrix.rotate_radians(M_PI / 2);
+        matrix.translate(dst_rect.width(), 0);
+        matrix.scale(-1, 1);
+        break;
+    case Gfx::ExifOrientation::Rotate90CounterClockwise:
+        matrix.translate(0, dst_rect.width());
+        matrix.rotate_radians(-M_PI / 2);
+        break;
+    default:
+        VERIFY_NOT_REACHED();
+    }
+
+    return matrix;
+}
+
 void DisplayListRecorder::draw_scaled_immutable_bitmap(Gfx::IntRect const& dst_rect, Gfx::ImmutableBitmap const& bitmap, Gfx::IntRect const& src_rect, Gfx::ScalingMode scaling_mode)
 {
     if (dst_rect.is_empty())
         return;
+
+    auto effective_dst_rect = dst_rect;
+
+    auto orientation = bitmap.bitmap()->exif_orientation();
+    auto transformation_matrix = compute_exif_orientation_matrix(orientation, effective_dst_rect);
+
     append(DrawScaledImmutableBitmap {
-        .dst_rect = dst_rect,
+        .dst_rect = effective_dst_rect,
         .bitmap = bitmap,
         .src_rect = src_rect,
         .scaling_mode = scaling_mode,
+        .transformation_matrix = transformation_matrix,
     });
 }
 
