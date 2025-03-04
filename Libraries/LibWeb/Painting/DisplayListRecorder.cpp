@@ -256,7 +256,7 @@ static Gfx::AffineTransform compute_exif_orientation_matrix(Gfx::ExifOrientation
     return matrix;
 }
 
-void DisplayListRecorder::draw_scaled_immutable_bitmap(Gfx::IntRect const& dst_rect, Gfx::ImmutableBitmap const& bitmap, Gfx::IntRect const& src_rect, Gfx::ScalingMode scaling_mode)
+void DisplayListRecorder::draw_scaled_immutable_bitmap(Gfx::IntRect const& dst_rect, Gfx::ImmutableBitmap const& bitmap, Gfx::IntRect const& src_rect, Gfx::ScalingMode scaling_mode, Gfx::ImageOrientation image_orientation)
 {
     if (dst_rect.is_empty())
         return;
@@ -264,7 +264,9 @@ void DisplayListRecorder::draw_scaled_immutable_bitmap(Gfx::IntRect const& dst_r
     auto effective_dst_rect = dst_rect;
 
     auto orientation = bitmap.bitmap()->exif_orientation();
-    auto transformation_matrix = compute_exif_orientation_matrix(orientation, effective_dst_rect);
+    auto transformation_matrix = image_orientation == Gfx::ImageOrientation::FromExif
+        ? compute_exif_orientation_matrix(orientation, effective_dst_rect)
+        : Gfx::AffineTransform{};
 
     append(DrawScaledImmutableBitmap {
         .dst_rect = effective_dst_rect,
