@@ -4,10 +4,14 @@
 // https://w3c.github.io/media-source/#dom-sourcebufferlist
 [Exposed=(Window,DedicatedWorker)]
 interface SourceBufferList : EventTarget {
-    [FIXME] readonly attribute unsigned long length;
+    readonly attribute unsigned long length;
 
     attribute EventHandler onaddsourcebuffer;
     attribute EventHandler onremovesourcebuffer;
+    
+    // FIXME: this is a temporary replacement for the non-identifier indexed property getter because they don't currently work
+    getter SourceBuffer? item(unsigned long index);
 
-    [FIXME] getter SourceBuffer (unsigned long index);
+    // FIXME: uncomment once non-identifier indexed properties are supported
+    // getter SourceBuffer (unsigned long index);
 };

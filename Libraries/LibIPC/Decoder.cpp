@@ -91,7 +91,7 @@ ErrorOr<URL::URL> decode(Decoder& decoder)
         return url.release_value();
 
     url->set_blob_url_entry(URL::BlobURLEntry {
-        .object = URL::BlobURLEntry::Object {
+        .object = URL::BlobURLEntry::BlobData {
             .type = TRY(decoder.decode<String>()),
             .data = TRY(decoder.decode<ByteBuffer>()),
         },

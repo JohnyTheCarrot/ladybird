@@ -7,6 +7,7 @@
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/Bindings/SourceBufferListPrototype.h>
 #include <LibWeb/MediaSourceExtensions/EventNames.h>
+#include <LibWeb/MediaSourceExtensions/SourceBuffer.h>
 #include <LibWeb/MediaSourceExtensions/SourceBufferList.h>
 
 namespace Web::MediaSourceExtensions {
@@ -16,6 +17,7 @@ GC_DEFINE_ALLOCATOR(SourceBufferList);
 SourceBufferList::SourceBufferList(JS::Realm& realm)
     : DOM::EventTarget(realm)
 {
+    m_legacy_platform_object_flags = LegacyPlatformObjectFlags { .supports_indexed_properties = true };
 }
 
 SourceBufferList::~SourceBufferList() = default;
@@ -48,6 +50,15 @@ void SourceBufferList::set_onremovesourcebuffer(GC::Ptr<WebIDL::CallbackType> ev
 GC::Ptr<WebIDL::CallbackType> SourceBufferList::onremovesourcebuffer()
 {
     return event_handler_attribute(EventNames::removesourcebuffer);
+}
+
+Optional<JS::Value> SourceBufferList::item_value(size_t index) const
+{
+    if (index >= m_source_buffers.size()) {
+        return JS::js_undefined();
+    }
+
+    return m_source_buffers[index];
 }
 
 }

@@ -101,9 +101,12 @@ ErrorOr<void> encode(Encoder& encoder, URL::URL const& value)
     TRY(encoder.encode(true));
 
     auto const& blob = value.blob_url_entry().value();
+    if (blob.object.has<GC::Ref<Web::MediaSourceExtensions::MediaSource>>())
+        return encoder.encode(false);
 
-    TRY(encoder.encode(blob.object.type));
-    TRY(encoder.encode(blob.object.data));
+    auto const& blob_object = blob.object.get<URL::BlobURLEntry::BlobData>();
+    TRY(encoder.encode(blob_object.type));
+    TRY(encoder.encode(blob_object.data));
     TRY(encoder.encode(blob.environment.origin));
 
     return {};

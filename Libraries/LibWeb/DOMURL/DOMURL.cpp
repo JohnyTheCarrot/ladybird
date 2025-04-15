@@ -15,6 +15,7 @@
 #include <LibWeb/DOMURL/DOMURL.h>
 #include <LibWeb/FileAPI/Blob.h>
 #include <LibWeb/FileAPI/BlobURLStore.h>
+#include <LibWeb/MediaSourceExtensions/MediaSource.h>
 
 namespace Web::DOMURL {
 
@@ -120,10 +121,13 @@ void DOMURL::visit_edges(Cell::Visitor& visitor)
 }
 
 // https://w3c.github.io/FileAPI/#dfn-createObjectURL
-WebIDL::ExceptionOr<String> DOMURL::create_object_url(JS::VM& vm, GC::Ref<FileAPI::Blob> object)
+WebIDL::ExceptionOr<String> DOMURL::create_object_url(JS::VM& vm, Variant<GC::Root<MediaSourceExtensions::MediaSource>, GC::Root<FileAPI::Blob>> object)
 {
     // The createObjectURL(obj) static method must return the result of adding an entry to the blob URL store for obj.
-    return TRY_OR_THROW_OOM(vm, FileAPI::add_entry_to_blob_url_store(object));
+    return object.visit(
+        [&](auto const obj) -> WebIDL::ExceptionOr<String> {
+            return TRY_OR_THROW_OOM(vm, FileAPI::add_entry_to_blob_url_store(obj));
+        });
 }
 
 // https://w3c.github.io/FileAPI/#dfn-revokeObjectURL
@@ -465,13 +469,22 @@ Optional<URL::URL> parse(StringView input, Optional<URL::URL const&> base_url, O
     // 4. Set url’s blob URL entry to the result of resolving the blob URL url, if that did not return failure, and null otherwise.
     auto blob_url_entry = FileAPI::resolve_a_blob_url(*url);
     if (blob_url_entry.has_value()) {
-        url->set_blob_url_entry(URL::BlobURLEntry {
-            .object = URL::BlobURLEntry::Object {
-                .type = blob_url_entry->object->type(),
-                .data = MUST(ByteBuffer::copy(blob_url_entry->object->raw_bytes())),
-            },
-            .environment { .origin = blob_url_entry->environment->origin() },
-        });
+        if (blob_url_entry->object.has<GC::Root<MediaSourceExtensions::MediaSource>>()) {
+            url->set_blob_url_entry(URL::BlobURLEntry {
+                .object = GC::Ref(*blob_url_entry->object.get<GC::Root<MediaSourceExtensions::MediaSource>>().ptr()),
+                .environment = { .origin = blob_url_entry->environment->origin() },
+            });
+        } else {
+            auto blob_object = blob_url_entry->object.get<GC::Root<FileAPI::Blob>>();
+
+            url->set_blob_url_entry(URL::BlobURLEntry {
+                .object = URL::BlobURLEntry::BlobData {
+                    .type = blob_object->type(),
+                    .data = MUST(ByteBuffer::copy(blob_object->raw_bytes())),
+                },
+                .environment { .origin = blob_url_entry->environment->origin() },
+            });
+        }
     }
 
     // 5. Return url

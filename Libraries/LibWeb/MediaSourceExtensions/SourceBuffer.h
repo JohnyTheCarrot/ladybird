@@ -6,9 +6,16 @@
 
 #pragma once
 
+#include <LibWeb/Bindings/SourceBufferPrototype.h>
 #include <LibWeb/DOM/EventTarget.h>
 
 namespace Web::MediaSourceExtensions {
+
+enum class AppendState {
+    WaitingForSegment,
+    ParsingInitSegment,
+    ParsingMediaSegment
+};
 
 // https://w3c.github.io/media-source/#dom-sourcebuffer
 class SourceBuffer : public DOM::EventTarget {
@@ -31,6 +38,33 @@ public:
     void set_onabort(GC::Ptr<WebIDL::CallbackType>);
     GC::Ptr<WebIDL::CallbackType> onabort();
 
+    Bindings::AppendMode mode() const { return m_mode; }
+    WebIDL::ExceptionOr<void> set_mode(Bindings::AppendMode);
+
+    bool updating() const { return m_updating; }
+
+    struct InternalState final {
+        GC::Ptr<MediaSource> m_parent_source = nullptr;
+        HighResolutionTime::DOMHighResTimeStamp m_group_start_timestamp;
+        HighResolutionTime::DOMHighResTimeStamp m_group_end_timestamp;
+        AppendState m_append_state = AppendState::WaitingForSegment;
+        ByteBuffer m_input_buffer;
+        bool m_buffer_full = false;
+        bool m_generate_timestamps_flag = false;
+    };
+
+    [[nodiscard]]
+    InternalState& internal_state()
+    {
+        return m_internal_state;
+    }
+
+    [[nodiscard]]
+    InternalState const& internal_state() const
+    {
+        return m_internal_state;
+    }
+
 protected:
     SourceBuffer(JS::Realm&);
 
@@ -39,6 +73,12 @@ protected:
     virtual void initialize(JS::Realm&) override;
 
 private:
+    Bindings::AppendMode m_mode;
+    bool m_updating = false;
+
+    InternalState m_internal_state;
+
+    void segment_parser_loop();
 };
 
 }

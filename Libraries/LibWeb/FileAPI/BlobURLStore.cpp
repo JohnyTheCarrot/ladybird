@@ -61,7 +61,7 @@ ErrorOr<String> generate_new_blob_url()
 }
 
 // https://w3c.github.io/FileAPI/#add-an-entry
-ErrorOr<String> add_entry_to_blob_url_store(GC::Ref<Blob> object)
+ErrorOr<String> add_entry_to_blob_url_store(GC::Root<Blob> object)
 {
     // 1. Let store be the user agent’s blob URL store.
     auto& store = blob_url_store();
@@ -71,6 +71,24 @@ ErrorOr<String> add_entry_to_blob_url_store(GC::Ref<Blob> object)
 
     // 3. Let entry be a new blob URL entry consisting of object and the current settings object.
     BlobURLEntry entry { object, HTML::current_principal_settings_object() };
+
+    // 4. Set store[url] to entry.
+    TRY(store.try_set(url, move(entry)));
+
+    // 5. Return url.
+    return url;
+}
+
+ErrorOr<String> add_entry_to_blob_url_store(GC::Root<MediaSourceExtensions::MediaSource> media_source)
+{
+    // 1. Let store be the user agent’s blob URL store.
+    auto& store = blob_url_store();
+
+    // 2. Let url be the result of generating a new blob URL.
+    auto url = TRY(generate_new_blob_url());
+
+    // 3. Let entry be a new blob URL entry consisting of object and the current settings object.
+    BlobURLEntry entry { media_source, HTML::current_principal_settings_object() };
 
     // 4. Set store[url] to entry.
     TRY(store.try_set(url, move(entry)));

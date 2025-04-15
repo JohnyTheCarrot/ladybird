@@ -8,6 +8,7 @@
 #include <LibWeb/Bindings/ManagedMediaSourcePrototype.h>
 #include <LibWeb/MediaSourceExtensions/EventNames.h>
 #include <LibWeb/MediaSourceExtensions/ManagedMediaSource.h>
+#include <LibWeb/MediaSourceExtensions/ManagedSourceBuffer.h>
 
 namespace Web::MediaSourceExtensions {
 
@@ -29,6 +30,13 @@ void ManagedMediaSource::initialize(JS::Realm& realm)
 {
     Base::initialize(realm);
     WEB_SET_PROTOTYPE_FOR_INTERFACE(ManagedMediaSource);
+}
+
+GC::Ref<SourceBuffer> ManagedMediaSource::create_source_buffer()
+{
+    auto const result = realm().create<ManagedSourceBuffer>(realm());
+    result->internal_state().m_parent_source = this;
+    return result;
 }
 
 // https://w3c.github.io/media-source/#dom-managedmediasource-onstartstreaming

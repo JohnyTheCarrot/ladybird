@@ -13,6 +13,8 @@
 #include <AK/String.h>
 #include <AK/StringView.h>
 #include <AK/Vector.h>
+#include <LibGC/Ptr.h>
+#include <LibGC/Root.h>
 #include <LibURL/Host.h>
 #include <LibURL/Origin.h>
 
@@ -20,6 +22,10 @@
 #if defined(AK_OS_LINUX) && defined(basename)
 #    undef basename
 #endif
+
+namespace Web::MediaSourceExtensions {
+class MediaSource;
+}
 
 namespace URL {
 
@@ -43,7 +49,7 @@ enum class ExcludeFragment {
 // https://w3c.github.io/FileAPI/#blob-url-entry
 struct BlobURLEntry {
     // This represents the raw bytes behind a 'Blob' (and does not yet support a MediaSourceQuery).
-    struct Object {
+    struct BlobData {
         String type;
         ByteBuffer data;
     };
@@ -53,6 +59,7 @@ struct BlobURLEntry {
         Origin origin;
     };
 
+    using Object = Variant<GC::Ref<Web::MediaSourceExtensions::MediaSource>, BlobData>;
     Object object;
     Environment environment;
 };

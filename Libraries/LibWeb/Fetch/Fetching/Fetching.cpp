@@ -863,13 +863,15 @@ WebIDL::ExceptionOr<GC::Ref<PendingResponse>> scheme_fetch(JS::Realm& realm, Inf
         }();
 
         // 7. Let blob be the result of obtaining a blob object given blobURLEntry and navigationOrEnvironment.
-        auto blob_object = FileAPI::obtain_a_blob_object(blob_url_entry.value(), navigation_or_environment);
+        auto blob_entry_object = FileAPI::obtain_a_blob_object(blob_url_entry.value(), navigation_or_environment);
 
         // 8. If blob is not a Blob object, then return a network error.
         // FIXME: This should probably check for a MediaSource object as well, once we implement that.
-        if (!blob_object.has_value())
+        if (!blob_entry_object.has_value() || !blob_entry_object->has<URL::BlobURLEntry::BlobData>())
             return PendingResponse::create(vm, request, Infrastructure::Response::network_error(vm, "Failed to obtain a Blob object from 'blob:' URL"_string));
-        auto const blob = FileAPI::Blob::create(realm, blob_object->data, blob_object->type);
+
+        auto const& blob_object = blob_entry_object->get<URL::BlobURLEntry::BlobData>();
+        auto const blob = FileAPI::Blob::create(realm, blob_object.data, blob_object.type);
 
         // 9. Let response be a new response.
         auto response = Infrastructure::Response::create(vm);
@@ -2816,5 +2818,4 @@ void append_fetch_metadata_headers_for_request(Infrastructure::Request& request)
     // 5. Set the Sec-Fetch-User header for r.
     set_sec_fetch_user_header(request);
 }
-
 }

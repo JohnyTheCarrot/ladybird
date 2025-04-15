@@ -18,6 +18,7 @@
 #include <LibWeb/Fetch/Infrastructure/FetchController.h>
 #include <LibWeb/Fetch/Infrastructure/HTTP/Requests.h>
 #include <LibWeb/Fetch/Infrastructure/HTTP/Responses.h>
+#include <LibWeb/FileAPI/BlobURLStore.h>
 #include <LibWeb/HTML/AudioPlayState.h>
 #include <LibWeb/HTML/AudioTrack.h>
 #include <LibWeb/HTML/AudioTrackList.h>
@@ -37,6 +38,7 @@
 #include <LibWeb/HTML/VideoTrack.h>
 #include <LibWeb/HTML/VideoTrackList.h>
 #include <LibWeb/Layout/Node.h>
+#include <LibWeb/MediaSourceExtensions/MediaSource.h>
 #include <LibWeb/MimeSniff/MimeType.h>
 #include <LibWeb/Page/Page.h>
 #include <LibWeb/Painting/Paintable.h>
@@ -959,22 +961,62 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
 {
     auto& realm = this->realm();
     auto& vm = realm.vm();
+    auto mode = [&] -> Optional<FetchMode> {
+        if (url_record.scheme() == "blob") {
+            auto const resolved = FileAPI::resolve_a_blob_url(url_record);
+            if (!resolved.has_value()) {
+                failure_callback("Failed to resolve blob URL"_string);
+                return {};
+            }
 
-    // 1. Let mode be remote.
-    auto mode = FetchMode::Remote;
+            // 1. If the resource fetch algorithm was invoked with a media provider object that is a MediaSource object, a MediaSourceHandle object or a URL record whose object is a MediaSource object, then : if (auto const* media_source = resolved->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr)
+            if (auto const* media_source = resolved->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr)
+            {
+                auto* media_source_object = media_source->ptr();
+
+                // FIXME: If the media provider object is a URL record whose object is a MediaSource that was constructed in a DedicatedWorkerGlobalScope, such as would occur if attempting to use a MediaSource object URL from a DedicatedWorkerGlobalScope MediaSource
+                // FIXME: If the media provider object is a MediaSourceHandle whose [[Detached]] internal slot is true
+                // FIXME: If the media provider object is a MediaSourceHandle whose underlying MediaSource's [[has ever been attached]] internal slot is true
+                // If readyState is NOT set to "closed":
+                if (media_source_object->ready_state() != Bindings::ReadyState::Closed) {
+                    // Run the "If the media data cannot be fetched at all, due to network errors, causing the user agent to give up trying to fetch the resource" steps of the resource fetch algorithm's media data processing steps list.
+                    m_fetch_controller->stop_fetch();
+                    failure_callback("readyState is not closed"_string);
+                    return {};
+                }
+
+                // Otherwise
+                // 1. Set the MediaSource's [[has ever been attached]] internal slot to true.
+                media_source_object->internal_state().m_has_ever_been_attached = true;
+                // 2. Set the media element's delaying-the-load-event-flag to false.
+                m_delaying_the_load_event.clear();
+
+                // 3.
+                // FIXME: If the MediaSource was constructed in a DedicatedWorkerGlobalScope, then setup worker attachment communication and open the MediaSource:
+                // Otherwise, the MediaSource was constructed in a Window:
+                // FIXME: Set [[channel with worker]] null.
+                //        Set [[port to worker]] null.
+                //        Set [[port to main]] null.
+                media_source_object->set_ready_state(Bindings::ReadyState::Open);
+            }
+
+            return FetchMode::Local;
+        }
+
+        return FetchMode::Remote;
+    }();
+
+    if (!mode.has_value())
+        return {};
 
     // FIXME: 2. If the algorithm was invoked with media provider object, then set mode to local.
-    //           Otherwise:
-    //           1. Let object be the result of obtaining a blob object using the URL record's blob URL entry and the media
-    //              element's node document's relevant settings object.
-    //           2. If object is a media provider object, then set mode to local.
     // FIXME: 3. If mode is remote, then let the current media resource be the resource given by the URL record passed to this algorithm; otherwise, let the
     //           current media resource be the resource given by the media provider object. Either way, the current media resource is now the element's media
     //           resource.
     // FIXME: 4. Remove all media-resource-specific text tracks from the media element's list of pending text tracks, if any.
 
     // 5. Run the appropriate steps from the following list:
-    switch (mode) {
+    switch (mode.value()) {
     // -> If mode is remote
     case FetchMode::Remote: {
         // FIXME: 1. Optionally, run the following substeps. This is the expected behavior if the user agent intends to not attempt to fetch the resource until

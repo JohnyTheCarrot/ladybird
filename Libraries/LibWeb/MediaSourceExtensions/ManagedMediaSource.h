@@ -30,6 +30,8 @@ private:
     virtual ~ManagedMediaSource() override;
 
     virtual void initialize(JS::Realm&) override;
+
+    virtual GC::Ref<SourceBuffer> create_source_buffer() override;
 };
 
 }
