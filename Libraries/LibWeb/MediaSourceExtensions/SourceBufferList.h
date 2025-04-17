@@ -53,6 +53,9 @@ public:
         return m_source_buffers;
     }
 
+    [[nodiscard]]
+    bool contains_source_buffer(GC::Ref<SourceBuffer> source_buffer) const;
+
 private:
     SourceBuffers m_source_buffers;
 

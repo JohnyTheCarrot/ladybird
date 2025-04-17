@@ -17,8 +17,8 @@ interface SourceBuffer : EventTarget {
     [FIXME] readonly  attribute boolean updating;
     [FIXME] readonly  attribute TimeRanges buffered;
     [FIXME] attribute double timestampOffset;
-    [FIXME] readonly  attribute AudioTrackList audioTracks;
-    [FIXME] readonly  attribute VideoTrackList videoTracks;
+    readonly  attribute AudioTrackList audioTracks;
+    readonly  attribute VideoTrackList videoTracks;
     [FIXME] readonly  attribute TextTrackList textTracks;
     [FIXME] attribute double appendWindowStart;
     [FIXME] attribute unrestricted double appendWindowEnd;
@@ -29,7 +29,7 @@ interface SourceBuffer : EventTarget {
     attribute EventHandler onerror;
     attribute EventHandler onabort;
 
-    [FIXME] undefined appendBuffer(BufferSource data);
+    undefined appendBuffer(BufferSource data);
     [FIXME] undefined abort();
     [FIXME] undefined changeType(DOMString type);
     [FIXME] undefined remove(double start, unrestricted double end);

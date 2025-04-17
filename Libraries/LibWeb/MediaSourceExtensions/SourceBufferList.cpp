@@ -61,4 +61,9 @@ Optional<JS::Value> SourceBufferList::item_value(size_t index) const
     return m_source_buffers[index];
 }
 
+bool SourceBufferList::contains_source_buffer(GC::Ref<SourceBuffer> source_buffer) const
+{
+    return m_source_buffers.contains_slow(source_buffer);
+}
+
 }

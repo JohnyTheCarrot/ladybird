@@ -63,6 +63,13 @@ GC::Ptr<JS::ArrayBuffer> BufferableObjectBase::viewed_array_buffer()
         [](auto const& view) -> GC::Ptr<JS::ArrayBuffer> { return view->viewed_array_buffer(); });
 }
 
+GC::Ptr<JS::ArrayBuffer const> BufferableObjectBase::viewed_array_buffer() const
+{
+    return m_bufferable_object.visit(
+        [](GC::Ref<JS::ArrayBuffer> array_buffer) -> GC::Ptr<JS::ArrayBuffer const> { return array_buffer; },
+        [](auto const& view) -> GC::Ptr<JS::ArrayBuffer const> { return view->viewed_array_buffer(); });
+}
+
 BufferableObject BufferableObjectBase::bufferable_object_from_raw_object(GC::Ref<JS::Object> object)
 {
     if (is<JS::TypedArrayBase>(*object))

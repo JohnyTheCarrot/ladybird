@@ -21,6 +21,22 @@ FFmpegIOContext::~FFmpegIOContext()
     avio_context_free(&m_avio_context);
 }
 
+static int read_packet(void* opaque, u8* buffer, int size)
+{
+    auto& stream = *static_cast<SeekableStream*>(opaque);
+    AK::Bytes const buffer_bytes { buffer, AK::min<size_t>(size, PAGE_SIZE) };
+    auto read_bytes_or_error = stream.read_some(buffer_bytes);
+    if (read_bytes_or_error.is_error()) {
+        if (read_bytes_or_error.error().code() == EOF)
+            return AVERROR_EOF;
+        return AVERROR_UNKNOWN;
+    }
+    int const number_of_bytes_read = read_bytes_or_error.value().size();
+    if (number_of_bytes_read == 0)
+        return AVERROR_EOF;
+    return number_of_bytes_read;
+}
+
 ErrorOr<NonnullOwnPtr<FFmpegIOContext>> FFmpegIOContext::create(AK::SeekableStream& stream)
 {
     auto* avio_buffer = av_malloc(PAGE_SIZE);
@@ -33,20 +49,7 @@ ErrorOr<NonnullOwnPtr<FFmpegIOContext>> FFmpegIOContext::create(AK::SeekableStre
         PAGE_SIZE,
         0,
         &stream,
-        [](void* opaque, u8* buffer, int size) -> int {
-            auto& stream = *static_cast<SeekableStream*>(opaque);
-            AK::Bytes buffer_bytes { buffer, AK::min<size_t>(size, PAGE_SIZE) };
-            auto read_bytes_or_error = stream.read_some(buffer_bytes);
-            if (read_bytes_or_error.is_error()) {
-                if (read_bytes_or_error.error().code() == EOF)
-                    return AVERROR_EOF;
-                return AVERROR_UNKNOWN;
-            }
-            int number_of_bytes_read = read_bytes_or_error.value().size();
-            if (number_of_bytes_read == 0)
-                return AVERROR_EOF;
-            return number_of_bytes_read;
-        },
+        read_packet,
         nullptr,
         [](void* opaque, int64_t offset, int whence) -> int64_t {
             whence &= ~AVSEEK_FORCE;
@@ -67,6 +70,29 @@ ErrorOr<NonnullOwnPtr<FFmpegIOContext>> FFmpegIOContext::create(AK::SeekableStre
                 return -EIO;
             return 0;
         });
+    if (avio_context == nullptr) {
+        av_free(avio_buffer);
+        return Error::from_string_literal("Failed to allocate AVIO context");
+    }
+
+    return make<FFmpegIOContext>(avio_context);
+}
+
+ErrorOr<NonnullOwnPtr<FFmpegIOContext>> FFmpegIOContext::create(AK::Stream& stream)
+{
+    auto* avio_buffer = av_malloc(PAGE_SIZE);
+    if (avio_buffer == nullptr)
+        return Error::from_string_literal("Failed to allocate AVIO buffer");
+
+    // This AVIOContext explains to avformat how to interact with our stream
+    auto* avio_context = avio_alloc_context(
+        static_cast<unsigned char*>(avio_buffer),
+        PAGE_SIZE,
+        0,
+        &stream,
+        read_packet,
+        nullptr,
+        nullptr);
     if (avio_context == nullptr) {
         av_free(avio_buffer);
         return Error::from_string_literal("Failed to allocate AVIO context");

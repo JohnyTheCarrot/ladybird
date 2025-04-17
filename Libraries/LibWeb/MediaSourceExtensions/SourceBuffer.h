@@ -9,6 +9,9 @@
 #include <LibWeb/Bindings/SourceBufferPrototype.h>
 #include <LibWeb/DOM/EventTarget.h>
 
+namespace Web::Bindings {
+enum class EndOfStreamError : u8;
+}
 namespace Web::MediaSourceExtensions {
 
 enum class AppendState {
@@ -43,6 +46,12 @@ public:
 
     bool updating() const { return m_updating; }
 
+    GC::Ref<HTML::AudioTrackList> audio_tracks() const { return *m_audio_tracks; }
+
+    GC::Ref<HTML::VideoTrackList> video_tracks() const { return *m_video_tracks; }
+
+    WebIDL::ExceptionOr<void> append_buffer(GC::Root<WebIDL::BufferSource>);
+
     struct InternalState final {
         GC::Ptr<MediaSource> m_parent_source = nullptr;
         HighResolutionTime::DOMHighResTimeStamp m_group_start_timestamp;
@@ -51,6 +60,8 @@ public:
         ByteBuffer m_input_buffer;
         bool m_buffer_full = false;
         bool m_generate_timestamps_flag = false;
+        bool m_first_initialization_segment_received = false;
+        bool m_pending_initialization_segment_for_changetype = false;
     };
 
     [[nodiscard]]
@@ -73,12 +84,33 @@ protected:
     virtual void initialize(JS::Realm&) override;
 
 private:
-    Bindings::AppendMode m_mode;
+    Bindings::AppendMode m_mode = {};
     bool m_updating = false;
 
-    InternalState m_internal_state;
+    [[nodiscard]]
+    bool is_attached_to_parent();
 
-    void segment_parser_loop();
+    InternalState m_internal_state = {};
+    GC::Ptr<HTML::AudioTrackList> m_audio_tracks;
+    GC::Ptr<HTML::VideoTrackList> m_video_tracks;
+
+    HTML::TaskID queue_a_source_buffer_task(Function<void()> steps) const;
+
+    HTML::UniqueTaskSource m_task_source {};
+
+    // Algorithms
+    /**
+     * @return Succeeded, did not abort
+     */
+    [[nodiscard]]
+    bool segment_parser_loop();
+    void initialization_segment_received();
+    WebIDL::ExceptionOr<void> prepare_append();
+    void coded_frame_eviction();
+    void buffer_append_algo();
+    void append_error();
+    void coded_frame_processing();
+    void reset_parser_state();
 };
 
 }

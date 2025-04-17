@@ -44,11 +44,14 @@ public:
     void set_ready_state(Bindings::ReadyState);
 
     [[nodiscard]]
-    bool contains_source_buffer(GC::Ptr<SourceBuffer const>) const;
+    bool contains_source_buffer(GC::Ref<SourceBuffer>) const;
 
     GC::Ref<SourceBufferList> source_buffers() const { return *m_source_buffers; }
 
+    WebIDL::ExceptionOr<void> end_of_stream(Optional<Bindings::EndOfStreamError> error);
+
     struct InternalState final {
+        GC::Ptr<HTML::HTMLMediaElement> m_media_element = nullptr;
         bool m_has_ever_been_attached = false;
     };
 
@@ -64,6 +67,8 @@ public:
         return m_internal_state;
     }
 
+    void end_of_stream_algo(Optional<Bindings::EndOfStreamError>);
+
 protected:
     MediaSource(JS::Realm&);
 
@@ -73,11 +78,15 @@ protected:
 
     virtual GC::Ref<SourceBuffer> create_source_buffer();
 
+    HTML::TaskID queue_a_media_source_task(Function<void()> steps);
+
 private:
     GC::Ptr<SourceBufferList> m_source_buffers;
 
     Bindings::ReadyState m_ready_state = Bindings::ReadyState::Closed;
     InternalState m_internal_state;
-};
+    HTML::UniqueTaskSource m_task_source {};
 
+    void mirror_if_necessary(Function<void()> const& steps);
+};
 }

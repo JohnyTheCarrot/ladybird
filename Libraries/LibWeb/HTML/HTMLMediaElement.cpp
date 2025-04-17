@@ -516,6 +516,69 @@ GC::Ref<TextTrack> HTMLMediaElement::add_text_track(Bindings::TextTrackKind kind
     return text_track;
 }
 
+void HTMLMediaElement::failed_with_media_provider(String error_message)
+{
+    IGNORE_USE_IN_ESCAPING_LAMBDA bool ran_media_element_task = false;
+
+    // 4. Failed with media provider: Reaching this step indicates that the media resource failed to load. Take pending play promises and queue a media element task given the media element to run the dedicated media source failure steps with the result.
+    queue_a_media_element_task([this, &ran_media_element_task, error_message = move(error_message)]() mutable {
+        auto promises = take_pending_play_promises();
+        handle_media_source_failure(promises, move(error_message)).release_value_but_fixme_should_propagate_errors();
+
+        ran_media_element_task = true;
+    });
+
+    // 5. Wait for the task queued by the previous step to have executed.
+    HTML::main_thread_event_loop().spin_until(GC::create_function(heap(), [&]() { return ran_media_element_task; }));
+}
+
+void HTMLMediaElement::connection_interrupted_failure()
+{
+    // 1. The user agent should cancel the fetching process.
+    if (m_fetch_controller && m_fetch_controller->state() == Fetch::Infrastructure::FetchController::State::Ongoing)
+        m_fetch_controller->stop_fetch();
+
+    // 2. Set the error attribute to the result of creating a MediaError with MEDIA_ERR_NETWORK.
+    auto& realm = this->realm();
+    m_error = realm.create<MediaError>(realm, MediaError::Code::Network, move("Connection interrupted"_string));
+
+    // 3. Set the element's networkState attribute to the NETWORK_IDLE value.
+    m_network_state = NetworkState::Idle;
+
+    // 4. Set the element's delaying-the-load-event flag to false. This stops delaying the load event.
+    m_delaying_the_load_event.clear();
+
+    // 5. Fire an event named error at the media element.
+    dispatch_event(DOM::Event::create(realm, HTML::EventNames::error));
+
+    // 6. Abort the overall resource selection algorithm.
+    // FIXME: how do we abort this algorithm if this was not invoked from it?
+}
+
+// https://html.spec.whatwg.org/multipage/media.html#fatal-decode-error
+void HTMLMediaElement::media_data_corrupted_failure()
+{
+    // 1. The user agent should cancel the fetching process.
+    if (m_fetch_controller && m_fetch_controller->state() == Fetch::Infrastructure::FetchController::State::Ongoing)
+        m_fetch_controller->stop_fetch();
+
+    // 2. Set the error attribute to the result of creating a MediaError with MEDIA_ERR_DECODE.
+    auto& realm = this->realm();
+    m_error = realm.create<MediaError>(realm, MediaError::Code::Decode, move("Media data corrupted"_string));
+
+    // 3. Set the element's networkState attribute to the NETWORK_IDLE value.
+    m_network_state = NetworkState::Idle;
+
+    // 4. Set the element's delaying-the-load-event flag to false. This stops delaying the load event.
+    m_delaying_the_load_event.clear();
+
+    // 5. Fire an event named error at the media element.
+    dispatch_event(DOM::Event::create(realm, HTML::EventNames::error));
+
+    // 6. Abort the overall resource selection algorithm.
+    // FIXME: how do we abort this algorithm if this was not invoked from it?
+}
+
 // https://html.spec.whatwg.org/multipage/media.html#media-element-load-algorithm
 WebIDL::ExceptionOr<void> HTMLMediaElement::load_element()
 {
@@ -822,12 +885,19 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::select_resource()
 
     Optional<SelectMode> mode;
     GC::Ptr<HTMLSourceElement> candidate;
+    Optional<URL::URL> url_record = {};
 
-    // 6. FIXME: ⌛ If the media element has an assigned media provider object, then let mode be object.
-
-    // ⌛ Otherwise, if the media element has no assigned media provider object but has a src attribute, then let mode be attribute.
     if (has_attribute(HTML::AttributeNames::src)) {
-        mode = SelectMode::Attribute;
+        // 6. ⌛ If the media element has an assigned media provider object, then let mode be object.
+        mode = [&] -> SelectMode {
+            if (auto const source = get_attribute_value(HTML::AttributeNames::src); !source.is_empty()) {
+                url_record = document().parse_url(source);
+                if (url_record.has_value() && url_record->scheme() == "blob")
+                    return SelectMode::Object;
+            }
+
+            return SelectMode::Attribute;
+        }();
     }
     // ⌛ Otherwise, if the media element does not have an assigned media provider object and does not have a src attribute, but does have
     // a source element child, then let mode be children and let candidate be the first such source element child in tree order.
@@ -858,18 +928,20 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::select_resource()
     // 9. Run the appropriate steps from the following list:
     switch (*mode) {
     // -> If mode is object
-    case SelectMode::Object:
-        // FIXME: 1. ⌛ Set the currentSrc attribute to the empty string.
-        // FIXME: 2. End the synchronous section, continuing the remaining steps in parallel.
-        // FIXME: 3. Run the resource fetch algorithm with the assigned media provider object. If that algorithm returns without aborting this one,
-        //           then theload failed.
-        // FIXME: 4. Failed with media provider: Reaching this step indicates that the media resource failed to load. Take pending play promises and queue
-        //           a media element task given the media element to run the dedicated media source failure steps with the result.
-        // FIXME: 5. Wait for the task queued by the previous step to have executed.
+    case SelectMode::Object: {
+        // 1. ⌛ Set the currentSrc attribute to the empty string.
+        TRY(set_attribute(HTML::AttributeNames::src, ""_string));
+        // 2. End the synchronous section, continuing the remaining steps in parallel.
+        // 3. Run the resource fetch algorithm with the assigned media provider object. If that algorithm returns without aborting this one,
+        //    then the load failed.
+        if (url_record.has_value()) {
+            TRY(fetch_resource(url_record.value(), [this](String error_message) { failed_with_media_provider(move(error_message)); }));
+            return {};
+        }
 
         // 6. Return. The element won't attempt to load another resource until this algorithm is triggered again.
         return {};
-
+    }
     // -> If mode is attribute
     case SelectMode::Attribute: {
         auto failed_with_attribute = [this](auto error_message) {
@@ -889,15 +961,18 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::select_resource()
         };
 
         // 1. ⌛ If the src attribute's value is the empty string, then end the synchronous section, and jump down to the failed with attribute step below.
-        auto source = get_attribute_value(HTML::AttributeNames::src);
-        if (source.is_empty()) {
-            failed_with_attribute("The 'src' attribute is empty"_string);
-            return {};
-        }
+        // If we haven't already parsed the url_record, we'll do so now.
+        if (!url_record.has_value()) {
+            auto source = get_attribute_value(HTML::AttributeNames::src);
+            if (source.is_empty()) {
+                failed_with_attribute("The 'src' attribute is empty"_string);
+                return {};
+            }
 
-        // 2. ⌛ Let urlString and urlRecord be the resulting URL string and the resulting URL record, respectively, that would have resulted from parsing
-        //    the URL specified by the src attribute's value relative to the media element's node document when the src attribute was last changed.
-        auto url_record = document().parse_url(source);
+            // 2. ⌛ Let urlString and urlRecord be the resulting URL string and the resulting URL record, respectively, that would have resulted from parsing
+            //    the URL specified by the src attribute's value relative to the media element's node document when the src attribute was last changed.
+            url_record = document().parse_url(source);
+        }
 
         // 3. ⌛ If urlString was obtained successfully, set the currentSrc attribute to urlString.
         if (url_record.has_value())
@@ -959,19 +1034,29 @@ enum class FetchMode {
 // https://html.spec.whatwg.org/multipage/media.html#concept-media-load-resource
 WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_record, Function<void(String)> failure_callback)
 {
+    AK::set_debug_enabled(true);
+    dbgln("1");
     auto& realm = this->realm();
     auto& vm = realm.vm();
-    auto mode = [&] -> Optional<FetchMode> {
+    auto potential_resolved_blob = [&] -> Optional<FileAPI::BlobURLEntry const&> {
         if (url_record.scheme() == "blob") {
             auto const resolved = FileAPI::resolve_a_blob_url(url_record);
             if (!resolved.has_value()) {
                 failure_callback("Failed to resolve blob URL"_string);
                 return {};
             }
+        }
 
-            // 1. If the resource fetch algorithm was invoked with a media provider object that is a MediaSource object, a MediaSourceHandle object or a URL record whose object is a MediaSource object, then : if (auto const* media_source = resolved->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr)
-            if (auto const* media_source = resolved->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr)
-            {
+        return {};
+    }();
+    dbgln("2");
+    auto mode = [&] -> Optional<FetchMode> {
+        if (url_record.scheme() == "blob") {
+            // 1. If the resource fetch algorithm was invoked with a media provider object that is a MediaSource object, a MediaSourceHandle object or a URL record whose object is a MediaSource object, then:
+            if (!potential_resolved_blob.has_value())
+                return FetchMode::Local;
+
+            if (auto const* media_source = potential_resolved_blob->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr) {
                 auto* media_source_object = media_source->ptr();
 
                 // FIXME: If the media provider object is a URL record whose object is a MediaSource that was constructed in a DedicatedWorkerGlobalScope, such as would occur if attempting to use a MediaSource object URL from a DedicatedWorkerGlobalScope MediaSource
@@ -1137,6 +1222,11 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
         //
         // When the current media resource is permanently exhausted (e.g. all the bytes of a Blob have been processed), if there were no decoding errors,
         // then the user agent must move on to the final step below. This might never happen, e.g. if the current media resource is a MediaStream.
+        if (potential_resolved_blob.has_value()) {
+            if (auto const* media_source = potential_resolved_blob->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr) {
+                media_source->ptr();
+            }
+        }
         break;
     }
 

@@ -32,6 +32,19 @@ ErrorOr<NonnullOwnPtr<FFmpegDemuxer>> FFmpegDemuxer::create(NonnullOwnPtr<Seekab
     auto io_context = TRY(Media::FFmpeg::FFmpegIOContext::create(*stream));
     auto demuxer = make<FFmpegDemuxer>(move(stream), move(io_context));
 
+    return create(move(demuxer));
+}
+
+// ErrorOr<NonnullOwnPtr<FFmpegDemuxer>> FFmpegDemuxer::create(NonnullOwnPtr<Stream> stream)
+// {
+//     auto io_context = TRY(Media::FFmpeg::FFmpegIOContext::create(*stream));
+//     auto demuxer = make<FFmpegDemuxer>(move(stream), move(io_context));
+//
+//     return create(move(demuxer));
+// }
+
+ErrorOr<NonnullOwnPtr<FFmpegDemuxer>> FFmpegDemuxer::create(NonnullOwnPtr<FFmpegDemuxer> demuxer)
+{
     // Open the container
     demuxer->m_format_context = avformat_alloc_context();
     if (demuxer->m_format_context == nullptr)

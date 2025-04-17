@@ -37,6 +37,8 @@ public:
 
     GC::Ptr<JS::ArrayBuffer> viewed_array_buffer();
 
+    GC::Ptr<JS::ArrayBuffer const> viewed_array_buffer() const;
+
     BufferableObject const& bufferable_object() const { return m_bufferable_object; }
     BufferableObject& bufferable_object() { return m_bufferable_object; }
 

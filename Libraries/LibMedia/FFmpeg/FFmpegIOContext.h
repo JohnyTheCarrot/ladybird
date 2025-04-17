@@ -23,6 +23,8 @@ public:
 
     static ErrorOr<NonnullOwnPtr<FFmpegIOContext>> create(AK::SeekableStream& stream);
 
+    static ErrorOr<NonnullOwnPtr<FFmpegIOContext>> create(AK::Stream& stream);
+
     AVIOContext* avio_context() const { return m_avio_context; }
 
 private:

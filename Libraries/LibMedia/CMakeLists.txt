@@ -2,18 +2,19 @@ include(audio)
 
 if (NOT ANDROID)
     include(ffmpeg)
-endif()
+endif ()
 
 set(SOURCES
-    Audio/Loader.cpp
-    Audio/SampleFormats.cpp
-    Color/ColorConverter.cpp
-    Color/ColorPrimaries.cpp
-    Color/TransferCharacteristics.cpp
-    Containers/Matroska/MatroskaDemuxer.cpp
-    Containers/Matroska/Reader.cpp
-    PlaybackManager.cpp
-    VideoFrame.cpp
+        Audio/Loader.cpp
+        Audio/SampleFormats.cpp
+        Color/ColorConverter.cpp
+        Color/ColorPrimaries.cpp
+        Color/TransferCharacteristics.cpp
+        Containers/Matroska/MatroskaDemuxer.cpp
+        Containers/Matroska/Reader.cpp
+        PlaybackManager.cpp
+        VideoFrame.cpp
+#        DASH/DASHDemuxer.cpp
 )
 
 serenity_lib(LibMedia media)
@@ -27,18 +28,18 @@ if (NOT ANDROID)
             FFmpeg/FFmpegVideoDecoder.cpp
     )
     target_link_libraries(LibMedia PRIVATE PkgConfig::AVCODEC PkgConfig::AVFORMAT PkgConfig::AVUTIL)
-else()
+else ()
     # FIXME: Need to figure out how to build or replace ffmpeg libs on Android and Windows
     target_sources(LibMedia PRIVATE
             FFmpeg/FFmpegDemuxerStub.cpp
             FFmpeg/FFmpegVideoDecoderStub.cpp
     )
-endif()
+endif ()
 
 if (LADYBIRD_AUDIO_BACKEND STREQUAL "PULSE")
     target_sources(LibMedia PRIVATE
-        Audio/PlaybackStreamPulseAudio.cpp
-        Audio/PulseAudioWrappers.cpp
+            Audio/PlaybackStreamPulseAudio.cpp
+            Audio/PulseAudioWrappers.cpp
     )
     target_link_libraries(LibMedia PRIVATE PkgConfig::PULSEAUDIO)
 elseif (LADYBIRD_AUDIO_BACKEND STREQUAL "AUDIO_UNIT")
@@ -53,4 +54,4 @@ elseif (DEFINED LADYBIRD_AUDIO_BACKEND)
     message(FATAL_ERROR "Please update ${CMAKE_CURRENT_LIST_FILE} for audio backend ${LADYBIRD_AUDIO_BACKEND}")
 else ()
     target_sources(LibMedia PRIVATE Audio/PlaybackStream.cpp)
-endif()
+endif ()

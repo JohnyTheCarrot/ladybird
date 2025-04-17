@@ -157,6 +157,13 @@ public:
 
     CORSSettingAttribute crossorigin() const { return m_crossorigin; }
 
+    void failed_with_media_provider(String error_message);
+
+    // If the connection is interrupted after some media data has been received, causing the user agent to give up trying to fetch the resource
+    void connection_interrupted_failure();
+
+    void media_data_corrupted_failure();
+
 protected:
     HTMLMediaElement(DOM::Document&, DOM::QualifiedName);
 
