@@ -9,6 +9,9 @@
 #include <LibWeb/Bindings/SourceBufferPrototype.h>
 #include <LibWeb/DOM/EventTarget.h>
 
+namespace Media::SegmentParsers {
+class SegmentParser;
+}
 namespace Web::Bindings {
 enum class EndOfStreamError : u8;
 }
@@ -43,6 +46,7 @@ public:
 
     Bindings::AppendMode mode() const { return m_mode; }
     WebIDL::ExceptionOr<void> set_mode(Bindings::AppendMode);
+    void set_mode_unchecked(Bindings::AppendMode);
 
     bool updating() const { return m_updating; }
 
@@ -58,6 +62,7 @@ public:
         HighResolutionTime::DOMHighResTimeStamp m_group_end_timestamp;
         AppendState m_append_state = AppendState::WaitingForSegment;
         ByteBuffer m_input_buffer;
+        GC::Ptr<Media::SegmentParsers::SegmentParser> m_segment_parser = nullptr;
         bool m_buffer_full = false;
         bool m_generate_timestamps_flag = false;
         bool m_first_initialization_segment_received = false;
@@ -77,7 +82,7 @@ public:
     }
 
 protected:
-    SourceBuffer(JS::Realm&);
+    SourceBuffer(JS::Realm&, MimeSniff::MimeType const& type);
 
     virtual ~SourceBuffer() override;
 
@@ -96,7 +101,7 @@ private:
 
     HTML::TaskID queue_a_source_buffer_task(Function<void()> steps) const;
 
-    HTML::UniqueTaskSource m_task_source {};
+    HTML::UniqueTaskSource m_task_source;
 
     // Algorithms
     /**
@@ -111,6 +116,16 @@ private:
     void append_error();
     void coded_frame_processing();
     void reset_parser_state();
+
+    // Utility
+    // Remove any bytes that the byte stream format specifications say MUST be ignored from the start of the [[input buffer]].
+    void trim_input_buffer();
+
+    [[nodiscard]]
+    bool input_buffer_starts_with_init_seg() const;
+
+    [[nodiscard]]
+    bool input_buffer_starts_with_media_seg() const;
 };
 
 }

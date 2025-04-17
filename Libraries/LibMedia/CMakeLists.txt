@@ -14,7 +14,8 @@ set(SOURCES
         Containers/Matroska/Reader.cpp
         PlaybackManager.cpp
         VideoFrame.cpp
-#        DASH/DASHDemuxer.cpp
+        #        DASH/DASHDemuxer.cpp
+        SegmentParsers/ISOBMFFSegParser.cpp
 )
 
 serenity_lib(LibMedia media)

@@ -32,9 +32,9 @@ void ManagedMediaSource::initialize(JS::Realm& realm)
     WEB_SET_PROTOTYPE_FOR_INTERFACE(ManagedMediaSource);
 }
 
-GC::Ref<SourceBuffer> ManagedMediaSource::create_source_buffer()
+GC::Ref<SourceBuffer> ManagedMediaSource::create_source_buffer(MimeSniff::MimeType const& type)
 {
-    auto const result = realm().create<ManagedSourceBuffer>(realm());
+    auto const result = realm().create<ManagedSourceBuffer>(realm(), type);
     result->internal_state().m_parent_source = this;
     return result;
 }

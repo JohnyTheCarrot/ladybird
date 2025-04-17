@@ -35,6 +35,9 @@ public:
 
     WebIDL::ExceptionOr<GC::Ref<SourceBuffer>> add_source_buffer(String const&);
 
+    [[nodiscard]]
+    static bool is_type_supported(MimeSniff::MimeType const& type);
+
     static bool is_type_supported(JS::VM&, String const&);
 
     Bindings::ReadyState ready_state() const
@@ -76,7 +79,7 @@ protected:
 
     virtual void initialize(JS::Realm&) override;
 
-    virtual GC::Ref<SourceBuffer> create_source_buffer();
+    virtual GC::Ref<SourceBuffer> create_source_buffer(MimeSniff::MimeType const& type);
 
     HTML::TaskID queue_a_media_source_task(Function<void()> steps);
 
@@ -85,7 +88,7 @@ private:
 
     Bindings::ReadyState m_ready_state = Bindings::ReadyState::Closed;
     InternalState m_internal_state;
-    HTML::UniqueTaskSource m_task_source {};
+    HTML::UniqueTaskSource m_task_source;
 
     void mirror_if_necessary(Function<void()> const& steps);
 };

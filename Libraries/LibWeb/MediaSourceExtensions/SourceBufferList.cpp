@@ -63,6 +63,12 @@ Optional<JS::Value> SourceBufferList::item_value(size_t index) const
 
 bool SourceBufferList::contains_source_buffer(GC::Ref<SourceBuffer> source_buffer) const
 {
+    AK::set_debug_enabled(true);
+    dbgln("Comparing {} against:", source_buffer.ptr());
+    for (auto const buffer : m_source_buffers) {
+        dbgln("{}", buffer.ptr());
+    }
+
     return m_source_buffers.contains_slow(source_buffer);
 }
 

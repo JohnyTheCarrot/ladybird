@@ -98,9 +98,10 @@ void MediaSource::initialize(JS::Realm& realm)
     WEB_SET_PROTOTYPE_FOR_INTERFACE(MediaSource);
     m_source_buffers = realm.create<SourceBufferList>(realm);
 }
-GC::Ref<SourceBuffer> MediaSource::create_source_buffer()
+
+GC::Ref<SourceBuffer> MediaSource::create_source_buffer(MimeSniff::MimeType const& type)
 {
-    auto const result = realm().create<SourceBuffer>(realm());
+    auto const result = realm().create<SourceBuffer>(realm(), type);
     result->internal_state().m_parent_source = this;
     return result;
 }
@@ -179,28 +180,54 @@ WebIDL::ExceptionOr<GC::Ref<SourceBuffer>> MediaSource::add_source_buffer(String
     auto& vm = this->vm();
     dbgln("add_source_buffer: {}", type);
 
-    if (type.is_empty())
+    if (type.is_empty()) {
+        dbgln("cancel 1");
         return vm.throw_completion<JS::TypeError>();
+    }
 
-    if (!is_type_supported(vm, type))
+    auto mime_type = MimeSniff::MimeType::parse(type);
+    if (!mime_type.has_value() || !is_type_supported(mime_type.value())) {
+        dbgln("cancel 2");
         return vm.throw_completion<WebIDL::NotSupportedError>("Unsupported type"_string);
+    }
 
     // FIXME: If the user agent can't handle any more SourceBuffer objects or if creating a SourceBuffer based on type would result in an unsupported SourceBuffer configuration, then throw a QuotaExceededError exception and abort these steps.
-    if (m_ready_state != Bindings::ReadyState::Open)
+    if (m_ready_state != Bindings::ReadyState::Open) {
+        dbgln("cancel 3");
         return vm.throw_completion<WebIDL::InvalidStateError>("MediaSource is not open"_string);
+    }
 
-    auto source_buffer = create_source_buffer();
+    auto source_buffer = create_source_buffer(mime_type.value());
     source_buffer->internal_state().m_generate_timestamps_flag = should_generate_timestamps(type);
     auto const new_buffer_mode = source_buffer->internal_state().m_generate_timestamps_flag ? Bindings::AppendMode::Sequence : Bindings::AppendMode::Segments;
-    if (auto const result = source_buffer->set_mode(new_buffer_mode); result.is_error())
-        return result.exception();
+    source_buffer->set_mode_unchecked(new_buffer_mode);
 
+    dbgln("Adding buffer");
     m_source_buffers->add_source_buffer(source_buffer);
     for (auto const buffer : m_source_buffers->get_source_buffers()) {
         buffer->dispatch_event(DOM::Event::create(realm(), EventNames::addsourcebuffer));
     }
 
     return source_buffer;
+}
+
+bool MediaSource::is_type_supported(MimeSniff::MimeType const& type)
+{
+    // auto const& parsed_type = type.type();
+    auto const& parsed_subtype = type.subtype();
+
+    return parsed_subtype == "mp4";
+
+    //
+    // if (parsed_type == "audio") {
+    //     return parsed_subtype == "webm" || parsed_subtype == "mp4" || parsed_subtype == "mp2t" || parsed_subtype == "mpeg" || parsed_subtype == "aac";
+    // }
+    //
+    // if (parsed_type == "video") {
+    //     return parsed_subtype == "webm" || parsed_subtype == "mp4" || parsed_subtype == "mp2t";
+    // }
+
+    // return false;
 }
 
 // https://w3c.github.io/media-source/#dom-mediasource-istypesupported
@@ -215,19 +242,7 @@ bool MediaSource::is_type_supported(JS::VM&, String const& type)
     if (!mime_type.has_value())
         return false;
 
-    auto const& parsed_type = mime_type->type();
-    auto const& parsed_subtype = mime_type->subtype();
-
-    if (parsed_type == "audio") {
-        return parsed_subtype == "webm" || parsed_subtype == "mp4" || parsed_subtype == "mp2t" || parsed_subtype == "mpeg" || parsed_subtype == "aac";
-    }
-
-    if (parsed_type == "video") {
-        return parsed_subtype == "webm" || parsed_subtype == "mp4" || parsed_subtype == "mp2t";
-    }
-
-    return false;
-
+    return is_type_supported(mime_type.value());
     // FIXME: 3. If type contains a media type or media subtype that the MediaSource does not support, then
     //    return false.
 

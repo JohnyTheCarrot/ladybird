@@ -13,8 +13,8 @@ namespace Web::MediaSourceExtensions {
 
 GC_DEFINE_ALLOCATOR(ManagedSourceBuffer);
 
-ManagedSourceBuffer::ManagedSourceBuffer(JS::Realm& realm)
-    : SourceBuffer(realm)
+ManagedSourceBuffer::ManagedSourceBuffer(JS::Realm& realm, MimeSniff::MimeType const &type)
+    : SourceBuffer(realm, type)
 {
 }
 

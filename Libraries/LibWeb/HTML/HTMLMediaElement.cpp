@@ -579,6 +579,14 @@ void HTMLMediaElement::media_data_corrupted_failure()
     // FIXME: how do we abort this algorithm if this was not invoked from it?
 }
 
+void HTMLMediaElement::new_data_became_available()
+{
+    queue_a_media_element_task([this] {
+        // FIXME: If the media resource is found to have an audio track
+        // FIXME: If the media resource is found to have a video track
+    });
+}
+
 // https://html.spec.whatwg.org/multipage/media.html#media-element-load-algorithm
 WebIDL::ExceptionOr<void> HTMLMediaElement::load_element()
 {
@@ -1045,18 +1053,24 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
                 failure_callback("Failed to resolve blob URL"_string);
                 return {};
             }
+
+            return resolved;
         }
 
         return {};
     }();
     dbgln("2");
     auto mode = [&] -> Optional<FetchMode> {
+        dbgln("3");
         if (url_record.scheme() == "blob") {
+            dbgln("4");
             // 1. If the resource fetch algorithm was invoked with a media provider object that is a MediaSource object, a MediaSourceHandle object or a URL record whose object is a MediaSource object, then:
             if (!potential_resolved_blob.has_value())
                 return FetchMode::Local;
 
+            dbgln("5");
             if (auto const* media_source = potential_resolved_blob->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr) {
+                dbgln("6");
                 auto* media_source_object = media_source->ptr();
 
                 // FIXME: If the media provider object is a URL record whose object is a MediaSource that was constructed in a DedicatedWorkerGlobalScope, such as would occur if attempting to use a MediaSource object URL from a DedicatedWorkerGlobalScope MediaSource
@@ -1069,10 +1083,12 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
                     failure_callback("readyState is not closed"_string);
                     return {};
                 }
+                dbgln("7");
 
                 // Otherwise
                 // 1. Set the MediaSource's [[has ever been attached]] internal slot to true.
                 media_source_object->internal_state().m_has_ever_been_attached = true;
+                media_source_object->internal_state().m_media_element = this;
                 // 2. Set the media element's delaying-the-load-event-flag to false.
                 m_delaying_the_load_event.clear();
 
@@ -1083,6 +1099,7 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
                 //        Set [[port to worker]] null.
                 //        Set [[port to main]] null.
                 media_source_object->set_ready_state(Bindings::ReadyState::Open);
+                dbgln("8");
             }
 
             return FetchMode::Local;
@@ -1210,6 +1227,7 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
 
     // -> Otherwise (mode is local)
     case FetchMode::Local:
+        dbgln("FetchMode::Local");
         // FIXME:
         // The resource described by the current media resource, if any, contains the media data. It is CORS-same-origin.
         //
@@ -1222,11 +1240,11 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::fetch_resource(URL::URL const& url_r
         //
         // When the current media resource is permanently exhausted (e.g. all the bytes of a Blob have been processed), if there were no decoding errors,
         // then the user agent must move on to the final step below. This might never happen, e.g. if the current media resource is a MediaStream.
-        if (potential_resolved_blob.has_value()) {
-            if (auto const* media_source = potential_resolved_blob->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr) {
-                media_source->ptr();
-            }
-        }
+        // if (potential_resolved_blob.has_value()) {
+        //     if (auto const* media_source = potential_resolved_blob->object.get_pointer<GC::Root<MediaSourceExtensions::MediaSource>>(); media_source != nullptr) {
+        //         media_source->ptr();
+        //     }
+        // }
         break;
     }
 

@@ -164,6 +164,8 @@ public:
 
     void media_data_corrupted_failure();
 
+    void new_data_became_available();
+
 protected:
     HTMLMediaElement(DOM::Document&, DOM::QualifiedName);
 
