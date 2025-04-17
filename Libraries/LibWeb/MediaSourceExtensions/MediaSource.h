@@ -51,6 +51,8 @@ public:
 
     GC::Ref<SourceBufferList> source_buffers() const { return *m_source_buffers; }
 
+    GC::Ref<SourceBufferList> active_source_buffers() const { return *m_active_source_buffers; }
+
     WebIDL::ExceptionOr<void> end_of_stream(Optional<Bindings::EndOfStreamError> error);
 
     struct InternalState final {
@@ -85,6 +87,7 @@ protected:
 
 private:
     GC::Ptr<SourceBufferList> m_source_buffers;
+    GC::Ptr<SourceBufferList> m_active_source_buffers;
 
     Bindings::ReadyState m_ready_state = Bindings::ReadyState::Closed;
     InternalState m_internal_state;

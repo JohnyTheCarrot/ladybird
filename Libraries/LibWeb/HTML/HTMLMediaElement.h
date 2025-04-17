@@ -17,10 +17,10 @@
 #include <LibWeb/HTML/CORSSettingAttribute.h>
 #include <LibWeb/HTML/EventLoop/Task.h>
 #include <LibWeb/HTML/HTMLElement.h>
+#include <LibWeb/MediaSourceExtensions/MediaSource.h>
 #include <LibWeb/PixelUnits.h>
 #include <LibWeb/UIEvents/KeyCode.h>
 #include <LibWeb/WebIDL/DOMException.h>
-#include <math.h>
 
 namespace Web::HTML {
 
@@ -33,6 +33,8 @@ class SourceElementSelector;
 
 class HTMLMediaElement : public HTMLElement {
     WEB_PLATFORM_OBJECT(HTMLMediaElement, HTMLElement);
+    using MediaProvider = Variant<GC::Root<FileAPI::Blob>, GC::Root<MediaSourceExtensions::MediaSource>>;
+    using OptionalMediaProvider = Variant<Empty, GC::Root<FileAPI::Blob>, GC::Root<MediaSourceExtensions::MediaSource>>;
 
 public:
     virtual ~HTMLMediaElement() override;
@@ -44,6 +46,14 @@ public:
 
     GC::Ptr<MediaError> error() const { return m_error; }
     void set_decoder_error(String error_message);
+
+    OptionalMediaProvider src_object() const
+    {
+        if (m_src_object.has_value())
+            return m_src_object.value();
+        return Empty {};
+    }
+    WebIDL::ExceptionOr<void> set_src_object(Optional<MediaProvider> const&);
 
     String const& current_src() const { return m_current_src; }
     WebIDL::ExceptionOr<void> select_resource();
@@ -251,6 +261,9 @@ private:
 
     // https://html.spec.whatwg.org/multipage/media.html#dom-media-currentsrc
     String m_current_src;
+
+    // https://html.spec.whatwg.org/multipage/media.html#dom-media-srcobject
+    Optional<MediaProvider> m_src_object;
 
     // https://html.spec.whatwg.org/multipage/media.html#dom-media-networkstate
     NetworkState m_network_state { NetworkState::Empty };

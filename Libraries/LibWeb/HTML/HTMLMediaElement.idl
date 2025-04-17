@@ -22,6 +22,9 @@ enum CanPlayTypeResult {
     "probably"
 };
 
+// FIXME: Include MediaStream in this
+typedef (MediaSource or Blob) MediaProvider; 
+
 // https://html.spec.whatwg.org/multipage/media.html#htmlmediaelement
 [Exposed=Window]
 interface HTMLMediaElement : HTMLElement {
@@ -31,7 +34,7 @@ interface HTMLMediaElement : HTMLElement {
 
     // network state
     [Reflect, CEReactions, URL] attribute USVString src;
-    [FIXME] attribute MediaProvider? srcObject;
+    attribute MediaProvider? srcObject;
     readonly attribute USVString currentSrc;
     [Reflect=crossorigin, CEReactions, Enumerated=CORSSettingsAttribute] attribute DOMString? crossOrigin;
     const unsigned short NETWORK_EMPTY = 0;

@@ -6,12 +6,11 @@
 
 #pragma once
 
+#include <AK/CircularBuffer.h>
+#include <LibMedia/SegmentParsers/SegmentParser.h>
 #include <LibWeb/Bindings/SourceBufferPrototype.h>
 #include <LibWeb/DOM/EventTarget.h>
 
-namespace Media::SegmentParsers {
-class SegmentParser;
-}
 namespace Web::Bindings {
 enum class EndOfStreamError : u8;
 }
@@ -61,8 +60,9 @@ public:
         HighResolutionTime::DOMHighResTimeStamp m_group_start_timestamp;
         HighResolutionTime::DOMHighResTimeStamp m_group_end_timestamp;
         AppendState m_append_state = AppendState::WaitingForSegment;
-        ByteBuffer m_input_buffer;
-        GC::Ptr<Media::SegmentParsers::SegmentParser> m_segment_parser = nullptr;
+        // FIXME: We should probably not be assuming the circular buffer creation succeeded.
+        CircularBuffer m_input_buffer { CircularBuffer::create_empty(5242880).release_value() };
+        OwnPtr<Media::SegmentParsers::SegmentParser> m_segment_parser = nullptr;
         bool m_buffer_full = false;
         bool m_generate_timestamps_flag = false;
         bool m_first_initialization_segment_received = false;
@@ -120,12 +120,6 @@ private:
     // Utility
     // Remove any bytes that the byte stream format specifications say MUST be ignored from the start of the [[input buffer]].
     void trim_input_buffer();
-
-    [[nodiscard]]
-    bool input_buffer_starts_with_init_seg() const;
-
-    [[nodiscard]]
-    bool input_buffer_starts_with_media_seg() const;
 };
 
 }

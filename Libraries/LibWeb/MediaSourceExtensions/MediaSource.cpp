@@ -97,6 +97,7 @@ void MediaSource::initialize(JS::Realm& realm)
     Base::initialize(realm);
     WEB_SET_PROTOTYPE_FOR_INTERFACE(MediaSource);
     m_source_buffers = realm.create<SourceBufferList>(realm);
+    m_active_source_buffers = realm.create<SourceBufferList>(realm);
 }
 
 GC::Ref<SourceBuffer> MediaSource::create_source_buffer(MimeSniff::MimeType const& type)

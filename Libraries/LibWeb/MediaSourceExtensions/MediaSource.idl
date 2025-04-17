@@ -23,7 +23,7 @@ interface MediaSource : EventTarget {
     [FIXME, SameObject, Exposed=DedicatedWorker]
     readonly  attribute MediaSourceHandle handle;
     readonly  attribute SourceBufferList sourceBuffers;
-    [FIXME] readonly  attribute SourceBufferList activeSourceBuffers;
+    readonly  attribute SourceBufferList activeSourceBuffers;
     readonly  attribute ReadyState readyState;
 
     [FIXME] attribute unrestricted double duration;

@@ -276,6 +276,17 @@ ErrorOr<size_t> CircularBuffer::copy_from_seekback(size_t distance, size_t lengt
     return length - remaining_length;
 }
 
+ReadonlyBytes CircularBuffer::peek(size_t offset, size_t length) const
+{ 
+    if (offset >= m_used_space)
+        return {};
+
+    auto read_offset = (m_reading_head + offset) % capacity();
+    auto read_length = min(length, m_used_space - offset);
+
+    return m_buffer.span().slice(read_offset, read_length);
+}
+
 SearchableCircularBuffer::SearchableCircularBuffer(ByteBuffer buffer)
     : CircularBuffer(move(buffer))
 {

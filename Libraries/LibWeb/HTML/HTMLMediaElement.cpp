@@ -163,6 +163,14 @@ void HTMLMediaElement::set_decoder_error(String error_message)
     // FIXME: 6. Abort the overall resource selection algorithm.
 }
 
+//  On setting, it must set the element's assigned media provider object to the new value, and then invoke the element's media element load algorithm.
+WebIDL::ExceptionOr<void> HTMLMediaElement::set_src_object(Optional<MediaProvider> const& media_provider)
+{
+    m_src_object = media_provider;
+    TRY(load_element());
+    return {};
+}
+
 // https://html.spec.whatwg.org/multipage/media.html#dom-media-buffered
 GC::Ref<TimeRanges> HTMLMediaElement::buffered() const
 {
@@ -875,6 +883,7 @@ void HTMLMediaElement::children_changed(ChildrenChangedMetadata const* metadata)
 // https://html.spec.whatwg.org/multipage/media.html#concept-media-load-algorithm
 WebIDL::ExceptionOr<void> HTMLMediaElement::select_resource()
 {
+    AK::set_debug_enabled(true);
     auto& realm = this->realm();
 
     // 1. Set the element's networkState attribute to the NETWORK_NO_SOURCE value.
@@ -898,11 +907,14 @@ WebIDL::ExceptionOr<void> HTMLMediaElement::select_resource()
     if (has_attribute(HTML::AttributeNames::src)) {
         // 6. ⌛ If the media element has an assigned media provider object, then let mode be object.
         mode = [&] -> SelectMode {
-            if (auto const source = get_attribute_value(HTML::AttributeNames::src); !source.is_empty()) {
-                url_record = document().parse_url(source);
-                if (url_record.has_value() && url_record->scheme() == "blob")
-                    return SelectMode::Object;
-            }
+            // if (auto const source = get_attribute_value(HTML::AttributeNames::src); !source.is_empty()) {
+            //     dbgln("HTMLMediaElement::select_resource: src attribute is set to '{}'", source);
+            //     url_record = document().parse_url(source);
+            //     if (url_record.has_value() && url_record->scheme() == "blob")
+            //         return SelectMode::Object;
+            // }
+            if (m_src_object.has_value())
+                return SelectMode::Object;
 
             return SelectMode::Attribute;
         }();

@@ -27,7 +27,9 @@ struct [[gnu::packed]] FileTypeBox final : Box {
 
 class ISOBMFFSegParser final : public SegmentParser {
 public:
-    [[nodiscard]] bool starts_with_init_segment(ReadonlyBytes buffer) override;
-    [[nodiscard]] bool starts_with_media_segment(ReadonlyBytes buffer) override;
+    [[nodiscard]] bool starts_with_init_segment(CircularBuffer const& buffer) const override;
+    [[nodiscard]] Optional<size_t> init_segment_size(CircularBuffer const& buffer) const override;
+    [[nodiscard]] bool contains_full_init_segment(CircularBuffer const& buffer) const override;
+    [[nodiscard]] bool starts_with_media_segment(CircularBuffer const& buffer) const override;
 };
 }

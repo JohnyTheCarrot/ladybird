@@ -6,14 +6,14 @@
 
 #include "SourceBuffer.h"
 
-#include "LibMedia/SegmentParsers/ISOBMFFSegParser.h"
-
 #include <LibJS/Runtime/ArrayBuffer.h>
+#include <LibMedia/SegmentParsers/ISOBMFFSegParser.h>
 #include <LibWeb/Bindings/Intrinsics.h>
 #include <LibWeb/Bindings/SourceBufferPrototype.h>
 #include <LibWeb/DOM/Event.h>
 #include <LibWeb/HTML/AudioTrackList.h>
 #include <LibWeb/HTML/HTMLMediaElement.h>
+#include <LibWeb/HTML/MediaError.h>
 #include <LibWeb/HTML/VideoTrackList.h>
 #include <LibWeb/MediaSourceExtensions/EventNames.h>
 #include <LibWeb/MediaSourceExtensions/MediaSource.h>
@@ -62,13 +62,14 @@ WebIDL::ExceptionOr<void> SourceBuffer::prepare_append()
     auto recent_element_error = false;
 
     // If the MediaSource was constructed in a Window:
-    recent_element_error = m_internal_state.m_parent_source->internal_state().m_media_element->error() != nullptr;
+    auto const media_element_error = m_internal_state.m_parent_source->internal_state().m_media_element->error();
+    recent_element_error = media_element_error != nullptr;
 
     // FIXME: Otherwise: Let recent element error be the value resulting from the steps for the Window case, but run on the Window HTMLMediaElement on any change to its error attribute and communicated by using [[port to worker]] implicit messages. If such a message has not yet been received, then let recent element error be false.
 
     // 4. If recent element error is true, then throw an InvalidStateError exception and abort these steps.
     if (recent_element_error) {
-        return vm().throw_completion<WebIDL::InvalidStateError>("MediaSource has an error"_string);
+        return vm().throw_completion<WebIDL::InvalidStateError>(String::formatted("MediaSource has an error: {}", media_element_error->message()).release_value());
     }
 
     // 5. If the readyState attribute of the parent media source is in the "ended" state then run the following steps:
@@ -107,6 +108,8 @@ void SourceBuffer::coded_frame_eviction()
 
 void SourceBuffer::buffer_append_algo()
 {
+    AK::set_debug_enabled(true);
+    dbgln("Start buffer append algo");
     // 1. Run the segment parser loop algorithm.
     auto const parsing_succeeded = segment_parser_loop();
 
@@ -162,20 +165,6 @@ void SourceBuffer::reset_parser_state()
 {
 }
 
-void SourceBuffer::trim_input_buffer()
-{
-}
-
-bool SourceBuffer::input_buffer_starts_with_init_seg() const
-{
-    return m_internal_state.m_segment_parser->starts_with_init_segment(m_internal_state.m_input_buffer);
-}
-
-bool SourceBuffer::input_buffer_starts_with_media_seg() const
-{
-    return m_internal_state.m_segment_parser->starts_with_media_segment(m_internal_state.m_input_buffer);
-}
-
 bool SourceBuffer::is_attached_to_parent()
 {
     return m_internal_state.m_parent_source->contains_source_buffer(*this);
@@ -193,7 +182,7 @@ bool SourceBuffer::segment_parser_loop()
     dbgln("Start segment parser loop");
 
     // 1. Loop Top: If the [[input buffer]] is empty, then jump to the need more data step below.
-    while (!m_internal_state.m_input_buffer.is_empty()) {
+    while (!m_internal_state.m_input_buffer.used_space() == 0) {
         dbgln("Segment parser loop iteration");
         // 2. If the [[input buffer]] contains bytes that violate the SourceBuffer byte stream format specification, then run the append error algorithm and abort this algorithm.
         // FIXME: Implement this check.
@@ -203,13 +192,15 @@ bool SourceBuffer::segment_parser_loop()
 
         switch (m_internal_state.m_append_state) {
         // 4. If the [[append state]] equals WAITING_FOR_SEGMENT, then run the following steps:
-        case AppendState::WaitingForSegment:
+        case AppendState::WaitingForSegment: {
             dbgln("WaitingForSegment: checking if we have an init or media segment");
             // 4.1. If the beginning of the [[input buffer]] indicates the start of an initialization segment, set the [[append state]] to PARSING_INIT_SEGMENT.
-            if (input_buffer_starts_with_init_seg()) {
+            auto const& segment_parser = *m_internal_state.m_segment_parser;
+            if (
+                segment_parser.starts_with_init_segment(m_internal_state.m_input_buffer)) {
                 m_internal_state.m_append_state = AppendState::ParsingInitSegment;
                 dbgln("WaitingForSegment: Found init segment");
-            } else if (input_buffer_starts_with_media_seg()) {
+            } else if (segment_parser.starts_with_media_segment(m_internal_state.m_input_buffer)) {
                 // 4.2. If the beginning of the [[input buffer]] indicates the start of a media segment, set [[append state]] to PARSING_MEDIA_SEGMENT.
                 m_internal_state.m_append_state = AppendState::ParsingMediaSegment;
                 dbgln("WaitingForSegment: Found media segment");
@@ -218,25 +209,31 @@ bool SourceBuffer::segment_parser_loop()
             // 4.3. Jump to the loop top step above.
             dbgln("WaitingForSegment: Found nothing, continue to next iteration");
             continue;
-
+        }
         // 5. If the [[append state]] equals PARSING_INIT_SEGMENT, then run the following steps:
-        case AppendState::ParsingInitSegment:
+        case AppendState::ParsingInitSegment: {
             dbgln("ParsingInitSegment, not implemented yet");
             // 5.1. If the [[input buffer]] does not contain a complete initialization segment yet, then jump to the need more data step below.
-            // FIXME: Implement this check.
+            if (!m_internal_state.m_segment_parser->contains_full_init_segment(m_internal_state.m_input_buffer))
+                return true;
 
             // 5.2. Run the initialization segment received algorithm.
             initialization_segment_received();
 
             // 5.3. Remove the initialization segment bytes from the beginning of the[[input buffer]].
-            // FIXME: do this
+            auto const num_bytes_init_segment = m_internal_state.m_segment_parser->init_segment_size(m_internal_state.m_input_buffer);
+            if (num_bytes_init_segment.has_value()) {
+                auto const result = m_internal_state.m_input_buffer.discard(num_bytes_init_segment.value());
+                VERIFY(!result.is_error());
+            }
 
             // 5.4. Set [[append state]] to WAITING_FOR_SEGMENT.
-            m_internal_state.m_append_state = AppendState::WaitingForSegment;
+            m_internal_state.m_append_state
+                = AppendState::WaitingForSegment;
 
             // 5.5. Jump to the loop top step above.
             continue;
-
+        }
         // 6. If the [[append state]] equals PARSING_MEDIA_SEGMENT, then run the following steps:
         case AppendState::ParsingMediaSegment:
             dbgln("ParsingMediaSegment, not implemented yet");
@@ -374,11 +371,13 @@ void SourceBuffer::set_mode_unchecked(Bindings::AppendMode new_mode)
 
 WebIDL::ExceptionOr<void> SourceBuffer::append_buffer(GC::Root<WebIDL::BufferSource> buffer_source)
 {
+    AK::set_debug_enabled(true);
+    dbgln("append_buffer");
     // 1. Run the prepare append algorithm.
     TRY(prepare_append());
 
     // 2. Add data to the end of [[input buffer]].
-    m_internal_state.m_input_buffer.append(buffer_source->viewed_array_buffer()->buffer());
+    m_internal_state.m_input_buffer.write(buffer_source->viewed_array_buffer()->buffer());
 
     // 3. Set the updating attribute to true.
     m_updating = true;

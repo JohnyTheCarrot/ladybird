@@ -36,6 +36,9 @@ public:
 
     ErrorOr<size_t> copy_from_seekback(size_t distance, size_t length);
 
+    [[nodiscard]]
+    ReadonlyBytes peek(size_t offset, size_t length) const;
+
     [[nodiscard]] size_t empty_space() const;
     [[nodiscard]] size_t used_space() const;
     [[nodiscard]] size_t capacity() const;
