@@ -204,21 +204,30 @@ bool SourceBuffer::segment_parser_loop()
                 // 4.2. If the beginning of the [[input buffer]] indicates the start of a media segment, set [[append state]] to PARSING_MEDIA_SEGMENT.
                 m_internal_state.m_append_state = AppendState::ParsingMediaSegment;
                 dbgln("WaitingForSegment: Found media segment");
-            }
+            } else
+                dbgln("WaitingForSegment: Found nothing, continue to next iteration");
 
             // 4.3. Jump to the loop top step above.
-            dbgln("WaitingForSegment: Found nothing, continue to next iteration");
             continue;
         }
         // 5. If the [[append state]] equals PARSING_INIT_SEGMENT, then run the following steps:
         case AppendState::ParsingInitSegment: {
-            dbgln("ParsingInitSegment, not implemented yet");
+            dbgln("ParsingInitSegment");
             // 5.1. If the [[input buffer]] does not contain a complete initialization segment yet, then jump to the need more data step below.
-            if (!m_internal_state.m_segment_parser->contains_full_init_segment(m_internal_state.m_input_buffer))
+            if (!m_internal_state.m_segment_parser->contains_full_init_segment(m_internal_state.m_input_buffer)) {
+                dbgln("ParsingInitSegment: No init segment yet");
                 return true;
+            }
+
+            auto const init_segment = m_internal_state.m_segment_parser->parse_init_segment(m_internal_state.m_input_buffer);
+            if (!init_segment.has_value()) {
+                dbgln("ParsingInitSegment: Failed to parse init segment");
+                append_error();
+                return false;
+            }
 
             // 5.2. Run the initialization segment received algorithm.
-            initialization_segment_received();
+            initialization_segment_received(init_segment.value());
 
             // 5.3. Remove the initialization segment bytes from the beginning of the[[input buffer]].
             auto const num_bytes_init_segment = m_internal_state.m_segment_parser->init_segment_size(m_internal_state.m_input_buffer);
@@ -231,6 +240,7 @@ bool SourceBuffer::segment_parser_loop()
             m_internal_state.m_append_state
                 = AppendState::WaitingForSegment;
 
+            return true;
             // 5.5. Jump to the loop top step above.
             continue;
         }
@@ -269,9 +279,18 @@ bool SourceBuffer::segment_parser_loop()
 }
 
 // https://www.w3.org/TR/media-source-2/#dfn-initialization-segment-received
-void SourceBuffer::initialization_segment_received()
+void SourceBuffer::initialization_segment_received(Media::SegmentParsers::InitializationSegment const&)
 {
-    // FIXME: implement this
+    // 1. Update the duration attribute if it currently equals NaN:
+    if (isnan(m_internal_state.m_parent_source->duration())) {
+        // If the initialization segment contains a duration:
+        //      Run the duration change algorithm with new duration set to the duration in the initialization segment.
+        // FIXME: the above
+
+        //      Otherwise:
+        //      Run the duration change algorithm with new duration set to positive Infinity.
+        m_internal_state.m_parent_source->duration_change(INFINITY);
+    }
 }
 
 // https://w3c.github.io/media-source/#dom-sourcebuffer-onupdatestart
@@ -369,7 +388,7 @@ void SourceBuffer::set_mode_unchecked(Bindings::AppendMode new_mode)
     m_mode = new_mode;
 }
 
-WebIDL::ExceptionOr<void> SourceBuffer::append_buffer(GC::Root<WebIDL::BufferSource> buffer_source)
+WebIDL::ExceptionOr<void> SourceBuffer::append_buffer(const GC::Root<WebIDL::BufferSource>& buffer_source)
 {
     AK::set_debug_enabled(true);
     dbgln("append_buffer");

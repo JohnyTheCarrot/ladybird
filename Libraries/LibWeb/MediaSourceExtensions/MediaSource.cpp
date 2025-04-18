@@ -122,6 +122,38 @@ void MediaSource::mirror_if_necessary(Function<void()> const& steps)
     steps();
 }
 
+void MediaSource::duration_change(double new_duration)
+{
+    // 1. If the current value of duration is equal to new duration, then return.
+    if (m_duration == new_duration)
+        return;
+
+    // FIXME: 2. If new duration is less than the highest presentation timestamp of any buffered coded frames for all SourceBuffer objects in sourceBuffers, then throw an InvalidStateError exception and abort these steps.
+
+    // FIXME: 3. Let highest end time be the largest track buffer ranges end time across all the track buffers across all SourceBuffer objects in sourceBuffers.
+
+    // FIXME: 4. If new duration is less than highest end time, then update new duration to equal highest end time.
+
+    // FIXME: 5. Update duration to new duration.
+
+    // 6. Use the mirror if necessary algorithm to run the following steps in Window to update the media element's duration:
+    mirror_if_necessary([this] {
+        // FIXME: 1. Update the media element's duration to new duration.
+        // FIXME: 2. Run the HTMLMediaElement duration change algorithm.
+    });
+}
+
+bool MediaSource::is_any_source_buffer_updating() const
+{
+    for (auto const source_buffer : m_source_buffers->get_source_buffers()) {
+        if (source_buffer->updating()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // https://w3c.github.io/media-source/#dom-mediasource-onsourceopen
 void MediaSource::set_onsourceopen(GC::Ptr<WebIDL::CallbackType> event_handler)
 {
@@ -279,14 +311,30 @@ WebIDL::ExceptionOr<void> MediaSource::end_of_stream(Optional<Bindings::EndOfStr
     }
 
     // 2. If the updating attribute equals true on any SourceBuffer in sourceBuffers, then throw an InvalidStateError exception and abort these steps.
-    for (auto const& source_buffer : m_source_buffers->get_source_buffers()) {
-        if (source_buffer->updating()) {
-            return vm().throw_completion<WebIDL::InvalidStateError>("SourceBuffer is updating"_string);
-        }
+    if (is_any_source_buffer_updating()) {
+        return vm().throw_completion<WebIDL::InvalidStateError>("SourceBuffer is updating"_string);
     }
-
     // 3. Run the end of stream algorithm with the error parameter set to error.
     end_of_stream_algo(error);
+    return {};
+}
+
+WebIDL::ExceptionOr<void> MediaSource::set_duration(double duration)
+{
+    // 1. If the value being set is negative or NaN then throw a TypeError exception and abort these steps.
+    if (duration < 0. || isnan(duration))
+        return vm().throw_completion<JS::TypeError>("Duration may not be negative or NaN"_string);
+
+    // 2. If the readyState attribute is not "open" then throw an InvalidStateError exception and abort these steps.
+    if (m_ready_state != Bindings::ReadyState::Open)
+        return vm().throw_completion<WebIDL::InvalidStateError>("readyState must be open to set duration"_string);
+
+    // 3. If the updating attribute equals true on any SourceBuffer in sourceBuffers, then throw an InvalidStateError exception and abort these steps.
+    if (is_any_source_buffer_updating())
+        return vm().throw_completion<WebIDL::InvalidStateError>("Cannot set duration while one or more source buffers are updating"_string);
+
+    // 4. Run the duration change algorithm with new duration set to the value being assigned to this attribute.
+    duration_change(duration);
     return {};
 }
 }

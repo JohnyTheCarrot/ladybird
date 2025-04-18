@@ -6,22 +6,35 @@
 
 #pragma once
 
+#include "LibMedia/FFmpeg/FFmpegIOContext.h"
+
 #include <AK/Endian.h>
 #include <LibMedia/SegmentParsers/SegmentParser.h>
 
 namespace Media::SegmentParsers {
 
 namespace ISOBMFF {
-using FourChars = u8[4];
+#define ISOBMFF_FOUR_CC(a, b, c, d) \
+    ((u32(a) << 24) | (u32(b) << 16) | (u32(c) << 8) | u32(d))
 
 struct [[gnu::packed]] Box {
     u32 m_size;
-    FourChars m_type;
+    u32 m_type;
 };
 
+struct [[gnu::packed]] FullBox : Box {
+    u8 m_version;
+    u8 m_flags[3];
+};
+
+static_assert(sizeof(Box) == 8);
+
 struct [[gnu::packed]] FileTypeBox final : Box {
-    FourChars m_major_brand;
+    static constexpr u32 associated_type = ISOBMFF_FOUR_CC('f', 't', 'y', 'p');
+
+    u32 m_major_brand;
     u32 m_minor_version;
+    // compatible brands is of variable length, so we can't include it here.
 };
 }
 
@@ -31,5 +44,6 @@ public:
     [[nodiscard]] Optional<size_t> init_segment_size(CircularBuffer const& buffer) const override;
     [[nodiscard]] bool contains_full_init_segment(CircularBuffer const& buffer) const override;
     [[nodiscard]] bool starts_with_media_segment(CircularBuffer const& buffer) const override;
+    [[nodiscard]] Optional<InitializationSegment> parse_init_segment(CircularBuffer const& buffer) const override;
 };
 }

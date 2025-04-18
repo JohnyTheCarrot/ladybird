@@ -53,7 +53,7 @@ public:
 
     GC::Ref<HTML::VideoTrackList> video_tracks() const { return *m_video_tracks; }
 
-    WebIDL::ExceptionOr<void> append_buffer(GC::Root<WebIDL::BufferSource>);
+    WebIDL::ExceptionOr<void> append_buffer(const GC::Root<WebIDL::BufferSource>&);
 
     struct InternalState final {
         GC::Ptr<MediaSource> m_parent_source = nullptr;
@@ -109,7 +109,7 @@ private:
      */
     [[nodiscard]]
     bool segment_parser_loop();
-    void initialization_segment_received();
+    void initialization_segment_received(Media::SegmentParsers::InitializationSegment const& init_segment);
     WebIDL::ExceptionOr<void> prepare_append();
     void coded_frame_eviction();
     void buffer_append_algo();

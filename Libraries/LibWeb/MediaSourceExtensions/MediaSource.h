@@ -10,6 +10,7 @@
 
 #include <LibWeb/Bindings/MediaSourcePrototype.h>
 #include <LibWeb/DOM/EventTarget.h>
+#include <AK/Math.h>
 
 namespace Web::MediaSourceExtensions {
 
@@ -55,6 +56,16 @@ public:
 
     WebIDL::ExceptionOr<void> end_of_stream(Optional<Bindings::EndOfStreamError> error);
 
+    double duration() const
+    {
+        if (m_ready_state == Bindings::ReadyState::Closed)
+            return AK::NaN<double>;
+
+        return m_duration;
+    }
+
+    WebIDL::ExceptionOr<void> set_duration(double duration);
+
     struct InternalState final {
         GC::Ptr<HTML::HTMLMediaElement> m_media_element = nullptr;
         bool m_has_ever_been_attached = false;
@@ -73,6 +84,7 @@ public:
     }
 
     void end_of_stream_algo(Optional<Bindings::EndOfStreamError>);
+    void duration_change(double new_duration);
 
 protected:
     MediaSource(JS::Realm&);
@@ -91,8 +103,13 @@ private:
 
     Bindings::ReadyState m_ready_state = Bindings::ReadyState::Closed;
     InternalState m_internal_state;
+    double m_duration { AK::NaN<double> };
+
     HTML::UniqueTaskSource m_task_source;
 
     void mirror_if_necessary(Function<void()> const& steps);
+
+    [[nodiscard]]
+    bool is_any_source_buffer_updating() const;
 };
 }
