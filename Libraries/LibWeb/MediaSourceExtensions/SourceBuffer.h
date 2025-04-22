@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024, Jelle Raaijmakers <jelle@ladybird.org>
+ * Copyright (c) 2025, Tuur Martens <tuurmartens4@gmail.com>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -61,7 +62,7 @@ public:
         HighResolutionTime::DOMHighResTimeStamp m_group_end_timestamp;
         AppendState m_append_state = AppendState::WaitingForSegment;
         // FIXME: We should probably not be assuming the circular buffer creation succeeded.
-        CircularBuffer m_input_buffer { CircularBuffer::create_empty(5242880).release_value() };
+        CircularBuffer m_input_buffer { CircularBuffer::create_empty(5 * MiB).release_value() };
         OwnPtr<Media::SegmentParsers::SegmentParser> m_segment_parser = nullptr;
         bool m_buffer_full = false;
         bool m_generate_timestamps_flag = false;

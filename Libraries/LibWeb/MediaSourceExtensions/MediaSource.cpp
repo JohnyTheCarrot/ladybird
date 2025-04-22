@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024, Jelle Raaijmakers <jelle@ladybird.org>
+ * Copyright (c) 2025, Tuur Martens <tuurmartens4@gmail.com>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -50,14 +51,15 @@ void MediaSource::end_of_stream_algo(Optional<Bindings::EndOfStreamError> error)
             case HTML::HTMLMediaElement::ReadyState::HaveNothing:
                 // If the HTMLMediaElement's readyState attribute equals HAVE_NOTHING
                 // Run the "If the media data cannot be fetched at all, due to network errors, causing the user agent to give up trying to fetch the resource" steps of the resource fetch algorithm's media data processing steps list.
-                // AD HOC: Unclear spec, this is a best guess.
-                m_internal_state.m_media_element->failed_with_media_provider("FIXME: figure out a good error message for this"_string);
+                // AD-HOC: Unclear spec, this is a best guess.
+                // FIXME: figure out a good error message for this
+                m_internal_state.m_media_element->failed_with_media_provider("Retwork error"_string);
                 break;
             default:
                 // If the HTMLMediaElement's readyState attribute is greater than HAVE_NOTHING
                 // (everything else is greater than HAVE_NOTHING)
                 // Run the "If the connection is interrupted after some media data has been received, causing the user agent to give up trying to fetch the resource" steps
-                // AD HOC: Unclear spec, this is a best guess.
+                // AD-HOC: Unclear spec, this is a best guess.
                 m_internal_state.m_media_element->connection_interrupted_failure();
                 break;
             }
@@ -69,14 +71,15 @@ void MediaSource::end_of_stream_algo(Optional<Bindings::EndOfStreamError> error)
             case HTML::HTMLMediaElement::ReadyState::HaveNothing:
                 // If the HTMLMediaElement's readyState attribute equals HAVE_NOTHING
                 // Run the "If the media data can be fetched but is found by inspection to be in an unsupported format, or can otherwise not be rendered at all" steps of the resource fetch algorithm's media data processing steps list.
-                // AD HOC: Unclear spec, this is a best guess.
-                m_internal_state.m_media_element->failed_with_media_provider("FIXME: figure out a good error message for this"_string);
+                // AD-HOC: Unclear spec, this is a best guess.
+                // FIXME: figure out a good error message for this
+                m_internal_state.m_media_element->failed_with_media_provider("Retwork error"_string);
                 break;
             default:
                 // If the HTMLMediaElement's readyState attribute is greater than HAVE_NOTHING
                 // (everything else is greater than HAVE_NOTHING)
                 // Run the media data is corrupted steps of the resource fetch algorithm's media data processing steps list.
-                // AD HOC: Unclear spec, this is a best guess.
+                // AD-HOC: Unclear spec, this is a best guess.
                 m_internal_state.m_media_element->media_data_corrupted_failure();
                 break;
             }
@@ -107,7 +110,7 @@ GC::Ref<SourceBuffer> MediaSource::create_source_buffer(MimeSniff::MimeType cons
     return result;
 }
 
-HTML::TaskID MediaSource::queue_a_media_source_task(Function<void()> steps)
+HTML::TaskID MediaSource::queue_a_media_source_task(Function<void()> steps) const
 {
     return HTML::queue_a_task(m_task_source.source, nullptr, nullptr, GC::create_function(heap(), move(steps)));
 }
@@ -211,22 +214,18 @@ WebIDL::ExceptionOr<GC::Ref<SourceBuffer>> MediaSource::add_source_buffer(String
 {
     AK::set_debug_enabled(true);
     auto& vm = this->vm();
-    dbgln("add_source_buffer: {}", type);
 
     if (type.is_empty()) {
-        dbgln("cancel 1");
         return vm.throw_completion<JS::TypeError>();
     }
 
     auto mime_type = MimeSniff::MimeType::parse(type);
     if (!mime_type.has_value() || !is_type_supported(mime_type.value())) {
-        dbgln("cancel 2");
         return vm.throw_completion<WebIDL::NotSupportedError>("Unsupported type"_string);
     }
 
     // FIXME: If the user agent can't handle any more SourceBuffer objects or if creating a SourceBuffer based on type would result in an unsupported SourceBuffer configuration, then throw a QuotaExceededError exception and abort these steps.
     if (m_ready_state != Bindings::ReadyState::Open) {
-        dbgln("cancel 3");
         return vm.throw_completion<WebIDL::InvalidStateError>("MediaSource is not open"_string);
     }
 
@@ -235,7 +234,6 @@ WebIDL::ExceptionOr<GC::Ref<SourceBuffer>> MediaSource::add_source_buffer(String
     auto const new_buffer_mode = source_buffer->internal_state().m_generate_timestamps_flag ? Bindings::AppendMode::Sequence : Bindings::AppendMode::Segments;
     source_buffer->set_mode_unchecked(new_buffer_mode);
 
-    dbgln("Adding buffer");
     m_source_buffers->add_source_buffer(source_buffer);
     for (auto const buffer : m_source_buffers->get_source_buffers()) {
         buffer->dispatch_event(DOM::Event::create(realm(), EventNames::addsourcebuffer));
@@ -251,7 +249,7 @@ bool MediaSource::is_type_supported(MimeSniff::MimeType const& type)
 
     return parsed_subtype == "mp4";
 
-    //
+    // FIXME: once all the segment parsers are implemented:
     // if (parsed_type == "audio") {
     //     return parsed_subtype == "webm" || parsed_subtype == "mp4" || parsed_subtype == "mp2t" || parsed_subtype == "mpeg" || parsed_subtype == "aac";
     // }

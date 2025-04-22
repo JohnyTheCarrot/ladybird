@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024, Jelle Raaijmakers <jelle@ladybird.org>
+ * Copyright (c) 2025, Tuur Martens <tuurmartens4@gmail.com>
  *
  * SPDX-License-Identifier: BSD-2-Clause
  */
@@ -8,9 +9,9 @@
 
 #include "SourceBufferList.h"
 
+#include <AK/Math.h>
 #include <LibWeb/Bindings/MediaSourcePrototype.h>
 #include <LibWeb/DOM/EventTarget.h>
-#include <AK/Math.h>
 
 namespace Web::MediaSourceExtensions {
 
@@ -95,7 +96,7 @@ protected:
 
     virtual GC::Ref<SourceBuffer> create_source_buffer(MimeSniff::MimeType const& type);
 
-    HTML::TaskID queue_a_media_source_task(Function<void()> steps);
+    HTML::TaskID queue_a_media_source_task(Function<void()> steps) const;
 
 private:
     GC::Ptr<SourceBufferList> m_source_buffers;

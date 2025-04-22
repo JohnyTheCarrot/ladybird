@@ -6,9 +6,7 @@
 
 #pragma once
 
-#include "LibMedia/FFmpeg/FFmpegIOContext.h"
-
-#include <AK/Endian.h>
+#include <LibMedia/FFmpeg/FFmpegIOContext.h>
 #include <LibMedia/SegmentParsers/SegmentParser.h>
 
 namespace Media::SegmentParsers {
@@ -36,14 +34,19 @@ struct [[gnu::packed]] FileTypeBox final : Box {
     u32 m_minor_version;
     // compatible brands is of variable length, so we can't include it here.
 };
+
+enum class TrakHandlerType : u8 {
+    Video,
+    Audio,
+    Hint
+};
 }
 
 class ISOBMFFSegParser final : public SegmentParser {
 public:
-    [[nodiscard]] bool starts_with_init_segment(CircularBuffer const& buffer) const override;
-    [[nodiscard]] Optional<size_t> init_segment_size(CircularBuffer const& buffer) const override;
-    [[nodiscard]] bool contains_full_init_segment(CircularBuffer const& buffer) const override;
-    [[nodiscard]] bool starts_with_media_segment(CircularBuffer const& buffer) const override;
-    [[nodiscard]] Optional<InitializationSegment> parse_init_segment(CircularBuffer const& buffer) const override;
+    [[nodiscard]] bool starts_with_init_segment(Input input) const override;
+    [[nodiscard]] bool contains_full_init_segment(Input buffer) const override;
+    [[nodiscard]] bool starts_with_media_segment(Input buffer) const override;
+    [[nodiscard]] ErrorOr<InitializationSegment> parse_init_segment(Input buffer) const override;
 };
 }
