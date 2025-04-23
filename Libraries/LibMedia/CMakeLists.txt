@@ -14,7 +14,6 @@ set(SOURCES
         Containers/Matroska/Reader.cpp
         PlaybackManager.cpp
         VideoFrame.cpp
-        #        DASH/DASHDemuxer.cpp
         SegmentParsers/ISOBMFFSegParser.cpp
 )
 

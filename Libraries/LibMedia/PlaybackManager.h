@@ -112,7 +112,6 @@ public:
 
     static DecoderErrorOr<NonnullOwnPtr<PlaybackManager>> from_data(ReadonlyBytes data);
     static DecoderErrorOr<NonnullOwnPtr<PlaybackManager>> from_stream(NonnullOwnPtr<SeekableStream> stream);
-    // static DecoderErrorOr<NonnullOwnPtr<PlaybackManager>> from_dash(NonnullOwnPtr<Stream> stream);
 
     PlaybackManager(NonnullOwnPtr<Demuxer>& demuxer, Track video_track, NonnullOwnPtr<VideoDecoder>&& decoder, VideoFrameQueue&& frame_queue);
     ~PlaybackManager();

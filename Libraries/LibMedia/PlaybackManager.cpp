@@ -7,7 +7,6 @@
 #include <AK/Format.h>
 #include <LibCore/MappedFile.h>
 #include <LibCore/Timer.h>
-#include <LibMedia/DASH/DASHDemuxer.h>
 #include <LibMedia/FFmpeg/FFmpegDemuxer.h>
 #include <LibMedia/FFmpeg/FFmpegVideoDecoder.h>
 #include <LibMedia/VideoFrame.h>
@@ -41,14 +40,6 @@ DecoderErrorOr<NonnullOwnPtr<PlaybackManager>> PlaybackManager::from_stream(Nonn
         return DecoderError::format(DecoderErrorCategory::Unknown, "{}", demuxer_or_error.error());
     return create(demuxer_or_error.release_value());
 }
-
-// DecoderErrorOr<NonnullOwnPtr<PlaybackManager>> PlaybackManager::from_dash(NonnullOwnPtr<Stream> stream)
-// {
-//     auto demuxer_or_error = FFmpeg::FFmpegDemuxer::create(move(stream));
-//     if (demuxer_or_error.is_error())
-//         return DecoderError::format(DecoderErrorCategory::Unknown, "{}", demuxer_or_error.error());
-//     return create(demuxer_or_error.release_value());
-// }
 
 PlaybackManager::PlaybackManager(NonnullOwnPtr<Demuxer>& demuxer, Track video_track, NonnullOwnPtr<VideoDecoder>&& decoder, VideoFrameQueue&& frame_queue)
     : m_demuxer(move(demuxer))
